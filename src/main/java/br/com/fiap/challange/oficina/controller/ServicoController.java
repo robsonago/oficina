@@ -1,0 +1,55 @@
+package br.com.fiap.challange.oficina.controller;
+
+import br.com.fiap.challange.oficina.dto.request.ServicoRequest;
+import br.com.fiap.challange.oficina.dto.response.ServicoResponse;
+import br.com.fiap.challange.oficina.service.ServicoService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/servicos")
+@RequiredArgsConstructor
+@Tag(name = "Serviços", description = "CRUD de serviços da oficina")
+public class ServicoController {
+
+    private final ServicoService servicoService;
+
+    @PostMapping
+    @Operation(summary = "Criar novo serviço")
+    public ResponseEntity<ServicoResponse> criar(@Valid @RequestBody ServicoRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(servicoService.criar(request));
+    }
+
+    @GetMapping
+    @Operation(summary = "Listar serviços ativos")
+    public ResponseEntity<List<ServicoResponse>> listar() {
+        return ResponseEntity.ok(servicoService.listar());
+    }
+
+    @GetMapping("/{id}")
+    @Operation(summary = "Buscar serviço por ID")
+    public ResponseEntity<ServicoResponse> buscarPorId(@PathVariable Long id) {
+        return ResponseEntity.ok(servicoService.buscarPorId(id));
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Atualizar serviço")
+    public ResponseEntity<ServicoResponse> atualizar(@PathVariable Long id,
+                                                     @Valid @RequestBody ServicoRequest request) {
+        return ResponseEntity.ok(servicoService.atualizar(id, request));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Desativar serviço (soft delete)")
+    public ResponseEntity<Void> deletar(@PathVariable Long id) {
+        servicoService.deletar(id);
+        return ResponseEntity.noContent().build();
+    }
+}

@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="pt"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClienteService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">oficina-mecanica</a> &gt; <a href="index.source.html" class="el_package">br.com.fiap.challange.oficina.service</a> &gt; <span class="el_source">ClienteService.java</span></div><h1>ClienteService.java</h1><pre class="source lang-java linenums">package br.com.fiap.challange.oficina.service;
+
+import br.com.fiap.challange.oficina.dto.request.ClienteRequest;
+import br.com.fiap.challange.oficina.dto.response.ClienteResponse;
+import br.com.fiap.challange.oficina.exception.DocumentoInvalidoException;
+import br.com.fiap.challange.oficina.exception.RecursoNaoEncontradoException;
+import br.com.fiap.challange.oficina.exception.RegraDeNegocioException;
+import br.com.fiap.challange.oficina.model.Cliente;
+import br.com.fiap.challange.oficina.repository.ClienteRepository;
+import br.com.fiap.challange.oficina.validator.CpfCnpjValidator;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+<span class="fc" id="L18">@Slf4j</span>
+@Service
+@Transactional
+@RequiredArgsConstructor
+public class ClienteService  {
+
+    private final ClienteRepository clienteRepository;
+
+        public ClienteResponse criar(ClienteRequest request) {
+<span class="fc" id="L27">        log.info(&quot;Criando cliente nome={} documento={}&quot;, request.nome(), request.documento());</span>
+<span class="fc" id="L28">        validarDocumento(request.documento());</span>
+<span class="fc" id="L29">        String docNormalizado = CpfCnpjValidator.normalizar(request.documento());</span>
+
+<span class="fc bfc" id="L31" title="All 2 branches covered.">        if (clienteRepository.existsByDocumento(docNormalizado)) {</span>
+<span class="fc" id="L32">            throw new RegraDeNegocioException(&quot;Já existe um cliente com o documento: &quot; + docNormalizado);</span>
+        }
+
+<span class="fc" id="L35">        Cliente cliente = Cliente.builder()</span>
+<span class="fc" id="L36">                .nome(request.nome())</span>
+<span class="fc" id="L37">                .documento(docNormalizado)</span>
+<span class="fc" id="L38">                .tipoDocumento(CpfCnpjValidator.detectarTipo(docNormalizado))</span>
+<span class="fc" id="L39">                .email(request.email())</span>
+<span class="fc" id="L40">                .telefone(request.telefone())</span>
+<span class="fc" id="L41">                .endereco(request.endereco())</span>
+<span class="fc" id="L42">                .build();</span>
+
+<span class="fc" id="L44">        ClienteResponse response = ClienteResponse.from(clienteRepository.save(cliente));</span>
+<span class="fc" id="L45">        log.info(&quot;Cliente criado id={}&quot;, response.id());</span>
+<span class="fc" id="L46">        return response;</span>
+    }
+
+    @Transactional(readOnly = true)
+    public List&lt;ClienteResponse&gt; listar() {
+<span class="fc" id="L51">        log.info(&quot;Listando clientes&quot;);</span>
+<span class="fc" id="L52">        return clienteRepository.findAll().stream()</span>
+<span class="fc" id="L53">                .map(ClienteResponse::from)</span>
+<span class="fc" id="L54">                .toList();</span>
+    }
+
+    @Transactional(readOnly = true)
+    public ClienteResponse buscarPorId(Long id) {
+<span class="fc" id="L59">        log.info(&quot;Buscando cliente id={}&quot;, id);</span>
+<span class="fc" id="L60">        return ClienteResponse.from(buscarEntidadePorId(id));</span>
+    }
+
+    @Transactional(readOnly = true)
+    public ClienteResponse buscarPorDocumento(String documento) {
+<span class="fc" id="L65">        log.info(&quot;Buscando cliente documento={}&quot;, documento);</span>
+<span class="fc" id="L66">        String docNormalizado = CpfCnpjValidator.normalizar(documento);</span>
+<span class="fc" id="L67">        return clienteRepository.findByDocumento(docNormalizado)</span>
+<span class="fc" id="L68">                .map(ClienteResponse::from)</span>
+<span class="fc" id="L69">                .orElseThrow(() -&gt; new RecursoNaoEncontradoException(&quot;Cliente não encontrado com documento: &quot; + documento));</span>
+    }
+
+        public ClienteResponse atualizar(Long id, ClienteRequest request) {
+<span class="fc" id="L73">        log.info(&quot;Atualizando cliente id={}&quot;, id);</span>
+<span class="fc" id="L74">        Cliente cliente = buscarEntidadePorId(id);</span>
+
+<span class="fc" id="L76">        String docNormalizado = CpfCnpjValidator.normalizar(request.documento());</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (!cliente.getDocumento().equals(docNormalizado)) {</span>
+<span class="fc" id="L78">            validarDocumento(request.documento());</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">            if (clienteRepository.existsByDocumento(docNormalizado)) {</span>
+<span class="fc" id="L80">                throw new RegraDeNegocioException(&quot;Já existe um cliente com o documento: &quot; + docNormalizado);</span>
+            }
+<span class="fc" id="L82">            cliente.setDocumento(docNormalizado);</span>
+<span class="fc" id="L83">            cliente.setTipoDocumento(CpfCnpjValidator.detectarTipo(docNormalizado));</span>
+        }
+
+<span class="fc" id="L86">        cliente.setNome(request.nome());</span>
+<span class="fc" id="L87">        cliente.setEmail(request.email());</span>
+<span class="fc" id="L88">        cliente.setTelefone(request.telefone());</span>
+<span class="fc" id="L89">        cliente.setEndereco(request.endereco());</span>
+
+<span class="fc" id="L91">        return ClienteResponse.from(clienteRepository.save(cliente));</span>
+    }
+
+        public void deletar(Long id) {
+<span class="fc" id="L95">        log.info(&quot;Desativando cliente id={}&quot;, id);</span>
+<span class="fc" id="L96">        Cliente cliente = buscarEntidadePorId(id);</span>
+<span class="fc" id="L97">        cliente.setAtivo(false);</span>
+<span class="fc" id="L98">        clienteRepository.save(cliente);</span>
+<span class="fc" id="L99">    }</span>
+
+    public Cliente buscarEntidadePorId(Long id) {
+<span class="fc" id="L102">        return clienteRepository.findById(id)</span>
+<span class="fc" id="L103">                .orElseThrow(() -&gt; new RecursoNaoEncontradoException(&quot;Cliente não encontrado: &quot; + id));</span>
+    }
+
+    private void validarDocumento(String documento) {
+<span class="fc bfc" id="L107" title="All 2 branches covered.">        if (!CpfCnpjValidator.isValido(documento)) {</span>
+<span class="fc" id="L108">            throw new DocumentoInvalidoException(&quot;CPF/CNPJ inválido: &quot; + documento);</span>
+        }
+<span class="fc" id="L110">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

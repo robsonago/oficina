@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="pt"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OrdemServicoResponse.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">oficina-mecanica</a> &gt; <a href="index.source.html" class="el_package">br.com.fiap.challange.oficina.dto.response</a> &gt; <span class="el_source">OrdemServicoResponse.java</span></div><h1>OrdemServicoResponse.java</h1><pre class="source lang-java linenums">package br.com.fiap.challange.oficina.dto.response;
+
+import br.com.fiap.challange.oficina.model.enums.StatusOS;
+import br.com.fiap.challange.oficina.model.OrdemServico;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+<span class="fc" id="L10">public record OrdemServicoResponse(</span>
+        Long id,
+        String numero,
+        Long clienteId,
+        String nomeCliente,
+        String documentoCliente,
+        Long veiculoId,
+        String placaVeiculo,
+        String modeloVeiculo,
+        StatusOS status,
+        String statusDescricao,
+        String descricaoProblema,
+        String observacoes,
+        BigDecimal valorTotal,
+        LocalDateTime dataAbertura,
+        LocalDateTime dataInicio,
+        LocalDateTime dataFinalizacao,
+        LocalDateTime dataEntrega,
+        List&lt;ItemServicoOSResponse&gt; itensServico,
+        List&lt;ItemPecaOSResponse&gt; itensPeca
+) {
+    public static OrdemServicoResponse from(OrdemServico os) {
+<span class="fc" id="L32">        return new OrdemServicoResponse(</span>
+<span class="fc" id="L33">                os.getId(),</span>
+<span class="fc" id="L34">                os.getNumero(),</span>
+<span class="fc" id="L35">                os.getCliente().getId(),</span>
+<span class="fc" id="L36">                os.getCliente().getNome(),</span>
+<span class="fc" id="L37">                os.getCliente().getDocumento(),</span>
+<span class="fc" id="L38">                os.getVeiculo().getId(),</span>
+<span class="fc" id="L39">                os.getVeiculo().getPlaca(),</span>
+<span class="fc" id="L40">                os.getVeiculo().getMarca() + &quot; &quot; + os.getVeiculo().getModelo(),</span>
+<span class="fc" id="L41">                os.getStatus(),</span>
+<span class="fc" id="L42">                os.getStatus().getDescricao(),</span>
+<span class="fc" id="L43">                os.getDescricaoProblema(),</span>
+<span class="fc" id="L44">                os.getObservacoes(),</span>
+<span class="fc" id="L45">                os.getValorTotal(),</span>
+<span class="fc" id="L46">                os.getDataAbertura(),</span>
+<span class="fc" id="L47">                os.getDataInicio(),</span>
+<span class="fc" id="L48">                os.getDataFinalizacao(),</span>
+<span class="fc" id="L49">                os.getDataEntrega(),</span>
+<span class="fc" id="L50">                os.getItensServico().stream().map(ItemServicoOSResponse::from).toList(),</span>
+<span class="fc" id="L51">                os.getItensPeca().stream().map(ItemPecaOSResponse::from).toList()</span>
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

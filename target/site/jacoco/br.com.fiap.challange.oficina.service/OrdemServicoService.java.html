@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="pt"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OrdemServicoService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">oficina-mecanica</a> &gt; <a href="index.source.html" class="el_package">br.com.fiap.challange.oficina.service</a> &gt; <span class="el_source">OrdemServicoService.java</span></div><h1>OrdemServicoService.java</h1><pre class="source lang-java linenums">package br.com.fiap.challange.oficina.service;
+
+import br.com.fiap.challange.oficina.dto.request.ItemPecaRequest;
+import br.com.fiap.challange.oficina.dto.request.ItemServicoRequest;
+import br.com.fiap.challange.oficina.dto.request.OrdemServicoRequest;
+import br.com.fiap.challange.oficina.dto.response.EstatisticasResponse;
+import br.com.fiap.challange.oficina.dto.response.OrdemServicoResponse;
+import br.com.fiap.challange.oficina.model.enums.StatusOS;
+import br.com.fiap.challange.oficina.exception.EstoqueInsuficienteException;
+import br.com.fiap.challange.oficina.exception.RecursoNaoEncontradoException;
+import br.com.fiap.challange.oficina.model.*;
+import br.com.fiap.challange.oficina.repository.ClienteRepository;
+import br.com.fiap.challange.oficina.repository.OrdemServicoRepository;
+import br.com.fiap.challange.oficina.repository.PecaRepository;
+import br.com.fiap.challange.oficina.repository.ServicoRepository;
+import br.com.fiap.challange.oficina.repository.VeiculoRepository;
+import br.com.fiap.challange.oficina.validator.CpfCnpjValidator;
+import br.com.fiap.challange.oficina.validator.PlacaValidator;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.UUID;
+
+<span class="fc" id="L28">@Slf4j</span>
+@Service
+@Transactional
+@RequiredArgsConstructor
+public class OrdemServicoService  {
+
+    private final OrdemServicoRepository osRepository;
+    private final ClienteRepository clienteRepository;
+    private final VeiculoRepository veiculoRepository;
+    private final ServicoRepository servicoRepository;
+    private final PecaRepository pecaRepository;
+
+        public OrdemServicoResponse criar(OrdemServicoRequest request) {
+<span class="fc" id="L41">        log.info(&quot;Criando OS cliente={} placa={}&quot;, request.documentoCliente(), request.placaVeiculo());</span>
+<span class="fc" id="L42">        String docNormalizado = CpfCnpjValidator.normalizar(request.documentoCliente());</span>
+<span class="fc" id="L43">        Cliente cliente = clienteRepository.findByDocumento(docNormalizado)</span>
+<span class="fc" id="L44">                .orElseThrow(() -&gt; new RecursoNaoEncontradoException(&quot;Cliente não encontrado com documento: &quot; + request.documentoCliente()));</span>
+
+<span class="fc" id="L46">        String placaNormalizada = PlacaValidator.normalizar(request.placaVeiculo());</span>
+<span class="fc" id="L47">        Veiculo veiculo = veiculoRepository.findByPlaca(placaNormalizada)</span>
+<span class="fc" id="L48">                .orElseThrow(() -&gt; new RecursoNaoEncontradoException(&quot;Veículo não encontrado com placa: &quot; + request.placaVeiculo()));</span>
+
+<span class="fc" id="L50">        OrdemServico os = OrdemServico.builder()</span>
+<span class="fc" id="L51">                .numero(gerarNumero())</span>
+<span class="fc" id="L52">                .cliente(cliente)</span>
+<span class="fc" id="L53">                .veiculo(veiculo)</span>
+<span class="fc" id="L54">                .status(StatusOS.RECEBIDA)</span>
+<span class="fc" id="L55">                .descricaoProblema(request.descricaoProblema())</span>
+<span class="fc" id="L56">                .observacoes(request.observacoes())</span>
+<span class="fc" id="L57">                .dataAbertura(java.time.LocalDateTime.now())</span>
+<span class="fc" id="L58">                .build();</span>
+
+<span class="fc bfc" id="L60" title="All 2 branches covered.">        if (request.servicos() != null) {</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">            for (ItemServicoRequest item : request.servicos()) {</span>
+<span class="fc" id="L62">                Servico servico = servicoRepository.findById(item.servicoId())</span>
+<span class="pc" id="L63">                        .orElseThrow(() -&gt; new RecursoNaoEncontradoException(&quot;Serviço não encontrado: &quot; + item.servicoId()));</span>
+<span class="fc" id="L64">                ItemServicoOS itemOS = ItemServicoOS.builder()</span>
+<span class="fc" id="L65">                        .ordemServico(os).servico(servico)</span>
+<span class="fc" id="L66">                        .quantidade(item.quantidade()).precoUnitario(servico.getPreco()).build();</span>
+<span class="fc" id="L67">                os.getItensServico().add(itemOS);</span>
+<span class="fc" id="L68">            }</span>
+        }
+
+<span class="fc bfc" id="L71" title="All 2 branches covered.">        if (request.pecas() != null) {</span>
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">            for (ItemPecaRequest item : request.pecas()) {</span>
+<span class="fc" id="L73">                Peca peca = pecaRepository.findById(item.pecaId())</span>
+<span class="pc" id="L74">                        .orElseThrow(() -&gt; new RecursoNaoEncontradoException(&quot;Peça não encontrada: &quot; + item.pecaId()));</span>
+<span class="nc" id="L75">                validarEstoque(peca, item.quantidade());</span>
+<span class="nc" id="L76">                ItemPecaOS itemOS = ItemPecaOS.builder()</span>
+<span class="nc" id="L77">                        .ordemServico(os).peca(peca)</span>
+<span class="nc" id="L78">                        .quantidade(item.quantidade()).precoUnitario(peca.getPrecoUnitario()).build();</span>
+<span class="nc" id="L79">                os.getItensPeca().add(itemOS);</span>
+<span class="nc" id="L80">            }</span>
+        }
+
+<span class="fc" id="L83">        os.recalcularTotal();</span>
+<span class="fc" id="L84">        OrdemServicoResponse response = OrdemServicoResponse.from(osRepository.save(os));</span>
+<span class="fc" id="L85">        log.info(&quot;OS criada numero={} id={} valorTotal={}&quot;, response.numero(), response.id(), response.valorTotal());</span>
+<span class="fc" id="L86">        return response;</span>
+    }
+
+    @Transactional(readOnly = true)
+    public List&lt;OrdemServicoResponse&gt; listar() {
+<span class="fc" id="L91">        log.info(&quot;Listando OSs&quot;);</span>
+<span class="fc" id="L92">        return osRepository.findAll().stream().map(OrdemServicoResponse::from).toList();</span>
+    }
+
+    @Transactional(readOnly = true)
+    public OrdemServicoResponse buscarPorId(Long id) {
+<span class="fc" id="L97">        log.info(&quot;Buscando OS id={}&quot;, id);</span>
+<span class="fc" id="L98">        return OrdemServicoResponse.from(buscarEntidadePorId(id));</span>
+    }
+
+    @Transactional(readOnly = true)
+    public List&lt;OrdemServicoResponse&gt; listarPorStatus(StatusOS status) {
+<span class="fc" id="L103">        log.info(&quot;Listando OSs status={}&quot;, status);</span>
+<span class="fc" id="L104">        return osRepository.findByStatus(status).stream().map(OrdemServicoResponse::from).toList();</span>
+    }
+
+    @Transactional(readOnly = true)
+    public String consultarStatus(Long id) {
+<span class="fc" id="L109">        log.info(&quot;Consultando status OS id={}&quot;, id);</span>
+<span class="fc" id="L110">        return buscarEntidadePorId(id).getStatus().getDescricao();</span>
+    }
+
+        public OrdemServicoResponse iniciarDiagnostico(Long id) {
+<span class="fc" id="L114">        log.info(&quot;Iniciando diagnóstico OS id={}&quot;, id);</span>
+<span class="fc" id="L115">        OrdemServico os = buscarEntidadePorId(id);</span>
+<span class="fc" id="L116">        os.transicionarStatus(StatusOS.EM_DIAGNOSTICO);</span>
+<span class="fc" id="L117">        return OrdemServicoResponse.from(osRepository.save(os));</span>
+    }
+
+        public OrdemServicoResponse gerarOrcamento(Long id) {
+<span class="fc" id="L121">        log.info(&quot;Gerando orçamento OS id={}&quot;, id);</span>
+<span class="fc" id="L122">        OrdemServico os = buscarEntidadePorId(id);</span>
+<span class="fc" id="L123">        os.recalcularTotal();</span>
+<span class="fc" id="L124">        os.transicionarStatus(StatusOS.AGUARDANDO_APROVACAO);</span>
+<span class="fc" id="L125">        OrdemServicoResponse response = OrdemServicoResponse.from(osRepository.save(os));</span>
+<span class="fc" id="L126">        log.info(&quot;Orçamento gerado OS id={} valorTotal={}&quot;, id, response.valorTotal());</span>
+<span class="fc" id="L127">        return response;</span>
+    }
+
+        public OrdemServicoResponse aprovarOrcamento(Long id) {
+<span class="fc" id="L131">        log.info(&quot;Aprovando orçamento OS id={}&quot;, id);</span>
+<span class="fc" id="L132">        OrdemServico os = buscarEntidadePorId(id);</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">        for (ItemPecaOS item : os.getItensPeca()) {</span>
+<span class="fc" id="L134">            validarEstoque(item.getPeca(), item.getQuantidade());</span>
+<span class="fc" id="L135">        }</span>
+<span class="fc" id="L136">        os.transicionarStatus(StatusOS.EM_EXECUCAO);</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">        for (ItemPecaOS item : os.getItensPeca()) {</span>
+<span class="fc" id="L138">            Peca peca = item.getPeca();</span>
+<span class="fc" id="L139">            peca.setQuantidadeEstoque(peca.getQuantidadeEstoque() - item.getQuantidade());</span>
+<span class="fc" id="L140">            pecaRepository.save(peca);</span>
+<span class="fc" id="L141">            log.info(&quot;Estoque baixado peça id={} nome={} qtd={}&quot;, peca.getId(), peca.getNome(), item.getQuantidade());</span>
+<span class="fc" id="L142">        }</span>
+<span class="fc" id="L143">        return OrdemServicoResponse.from(osRepository.save(os));</span>
+    }
+
+        public OrdemServicoResponse rejeitarOrcamento(Long id) {
+<span class="fc" id="L147">        log.info(&quot;Rejeitando orçamento OS id={}&quot;, id);</span>
+<span class="fc" id="L148">        OrdemServico os = buscarEntidadePorId(id);</span>
+<span class="fc" id="L149">        os.transicionarStatus(StatusOS.EM_DIAGNOSTICO);</span>
+<span class="fc" id="L150">        return OrdemServicoResponse.from(osRepository.save(os));</span>
+    }
+
+        public OrdemServicoResponse finalizar(Long id) {
+<span class="fc" id="L154">        log.info(&quot;Finalizando OS id={}&quot;, id);</span>
+<span class="fc" id="L155">        OrdemServico os = buscarEntidadePorId(id);</span>
+<span class="fc" id="L156">        os.transicionarStatus(StatusOS.FINALIZADA);</span>
+<span class="fc" id="L157">        return OrdemServicoResponse.from(osRepository.save(os));</span>
+    }
+
+        public OrdemServicoResponse entregar(Long id) {
+<span class="fc" id="L161">        log.info(&quot;Registrando entrega OS id={}&quot;, id);</span>
+<span class="fc" id="L162">        OrdemServico os = buscarEntidadePorId(id);</span>
+<span class="fc" id="L163">        os.transicionarStatus(StatusOS.ENTREGUE);</span>
+<span class="fc" id="L164">        return OrdemServicoResponse.from(osRepository.save(os));</span>
+    }
+
+        public OrdemServicoResponse adicionarServico(Long osId, ItemServicoRequest request) {
+<span class="fc" id="L168">        log.info(&quot;Adicionando serviço OS id={} servicoId={}&quot;, osId, request.servicoId());</span>
+<span class="fc" id="L169">        OrdemServico os = buscarEntidadePorId(osId);</span>
+<span class="fc" id="L170">        Servico servico = servicoRepository.findById(request.servicoId())</span>
+<span class="fc" id="L171">                .orElseThrow(() -&gt; new RecursoNaoEncontradoException(&quot;Serviço não encontrado: &quot; + request.servicoId()));</span>
+<span class="fc" id="L172">        ItemServicoOS item = ItemServicoOS.builder()</span>
+<span class="fc" id="L173">                .ordemServico(os).servico(servico)</span>
+<span class="fc" id="L174">                .quantidade(request.quantidade()).precoUnitario(servico.getPreco()).build();</span>
+<span class="fc" id="L175">        os.getItensServico().add(item);</span>
+<span class="fc" id="L176">        os.recalcularTotal();</span>
+<span class="fc" id="L177">        return OrdemServicoResponse.from(osRepository.save(os));</span>
+    }
+
+        public OrdemServicoResponse adicionarPeca(Long osId, ItemPecaRequest request) {
+<span class="fc" id="L181">        log.info(&quot;Adicionando peça OS id={} pecaId={}&quot;, osId, request.pecaId());</span>
+<span class="fc" id="L182">        OrdemServico os = buscarEntidadePorId(osId);</span>
+<span class="fc" id="L183">        Peca peca = pecaRepository.findById(request.pecaId())</span>
+<span class="fc" id="L184">                .orElseThrow(() -&gt; new RecursoNaoEncontradoException(&quot;Peça não encontrada: &quot; + request.pecaId()));</span>
+<span class="fc" id="L185">        validarEstoque(peca, request.quantidade());</span>
+<span class="fc" id="L186">        ItemPecaOS item = ItemPecaOS.builder()</span>
+<span class="fc" id="L187">                .ordemServico(os).peca(peca)</span>
+<span class="fc" id="L188">                .quantidade(request.quantidade()).precoUnitario(peca.getPrecoUnitario()).build();</span>
+<span class="fc" id="L189">        os.getItensPeca().add(item);</span>
+<span class="fc" id="L190">        os.recalcularTotal();</span>
+<span class="fc" id="L191">        return OrdemServicoResponse.from(osRepository.save(os));</span>
+    }
+
+        public EstatisticasResponse calcularEstatisticas() {
+<span class="fc" id="L195">        log.info(&quot;Calculando estatísticas de OSs&quot;);</span>
+<span class="fc" id="L196">        List&lt;OrdemServico&gt; finalizadas = osRepository.findFinalizadasComTempo();</span>
+<span class="fc" id="L197">        long tempoMedio = 0;</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">        if (!finalizadas.isEmpty()) {</span>
+<span class="fc" id="L199">            tempoMedio = (long) finalizadas.stream()</span>
+<span class="fc" id="L200">                    .mapToLong(os -&gt; ChronoUnit.MINUTES.between(os.getDataInicio(), os.getDataFinalizacao()))</span>
+<span class="fc" id="L201">                    .average().orElse(0);</span>
+        }
+<span class="fc" id="L203">        List&lt;OrdemServico&gt; todas = osRepository.findAll();</span>
+<span class="fc" id="L204">        return new EstatisticasResponse(</span>
+<span class="fc" id="L205">                tempoMedio, finalizadas.size(),</span>
+<span class="fc" id="L206">                contarPorStatus(todas, StatusOS.RECEBIDA),</span>
+<span class="fc" id="L207">                contarPorStatus(todas, StatusOS.EM_DIAGNOSTICO),</span>
+<span class="fc" id="L208">                contarPorStatus(todas, StatusOS.AGUARDANDO_APROVACAO),</span>
+<span class="fc" id="L209">                contarPorStatus(todas, StatusOS.EM_EXECUCAO),</span>
+<span class="fc" id="L210">                contarPorStatus(todas, StatusOS.FINALIZADA),</span>
+<span class="fc" id="L211">                contarPorStatus(todas, StatusOS.ENTREGUE));</span>
+    }
+
+    private long contarPorStatus(List&lt;OrdemServico&gt; lista, StatusOS status) {
+<span class="fc bfc" id="L215" title="All 2 branches covered.">        return lista.stream().filter(os -&gt; os.getStatus() == status).count();</span>
+    }
+
+    private void validarEstoque(Peca peca, int quantidade) {
+<span class="fc bfc" id="L219" title="All 2 branches covered.">        if (peca.getQuantidadeEstoque() &lt; quantidade) {</span>
+<span class="fc" id="L220">            throw new EstoqueInsuficienteException(</span>
+<span class="fc" id="L221">                    String.format(&quot;Estoque insuficiente para '%s'. Disponível: %d, Solicitado: %d&quot;,</span>
+<span class="fc" id="L222">                            peca.getNome(), peca.getQuantidadeEstoque(), quantidade));</span>
+        }
+<span class="fc" id="L224">    }</span>
+
+    private String gerarNumero() {
+<span class="fc" id="L227">        return String.format(&quot;OS-%d-%s&quot;, java.time.Year.now().getValue(),</span>
+<span class="fc" id="L228">                UUID.randomUUID().toString().substring(0, 8).toUpperCase());</span>
+    }
+
+    private OrdemServico buscarEntidadePorId(Long id) {
+<span class="fc" id="L232">        return osRepository.findById(id)</span>
+<span class="fc" id="L233">                .orElseThrow(() -&gt; new RecursoNaoEncontradoException(&quot;Ordem de Serviço não encontrada: &quot; + id));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

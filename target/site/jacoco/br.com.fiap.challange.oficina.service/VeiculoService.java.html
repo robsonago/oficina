@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="pt"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VeiculoService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">oficina-mecanica</a> &gt; <a href="index.source.html" class="el_package">br.com.fiap.challange.oficina.service</a> &gt; <span class="el_source">VeiculoService.java</span></div><h1>VeiculoService.java</h1><pre class="source lang-java linenums">package br.com.fiap.challange.oficina.service;
+
+import br.com.fiap.challange.oficina.dto.request.VeiculoRequest;
+import br.com.fiap.challange.oficina.dto.response.VeiculoResponse;
+import br.com.fiap.challange.oficina.exception.RecursoNaoEncontradoException;
+import br.com.fiap.challange.oficina.exception.RegraDeNegocioException;
+import br.com.fiap.challange.oficina.model.Cliente;
+import br.com.fiap.challange.oficina.model.Veiculo;
+import br.com.fiap.challange.oficina.repository.ClienteRepository;
+import br.com.fiap.challange.oficina.repository.VeiculoRepository;
+import br.com.fiap.challange.oficina.validator.PlacaValidator;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+<span class="fc" id="L19">@Slf4j</span>
+@Service
+@Transactional
+@RequiredArgsConstructor
+public class VeiculoService  {
+
+    private final VeiculoRepository veiculoRepository;
+    private final ClienteRepository clienteRepository;
+
+        public VeiculoResponse criar(VeiculoRequest request) {
+<span class="fc" id="L29">        log.info(&quot;Criando veículo placa={} clienteId={}&quot;, request.placa(), request.clienteId());</span>
+<span class="fc" id="L30">        String placaNormalizada = PlacaValidator.normalizar(request.placa());</span>
+<span class="fc bfc" id="L31" title="All 2 branches covered.">        if (!PlacaValidator.isValida(placaNormalizada)) {</span>
+<span class="fc" id="L32">            throw new RegraDeNegocioException(&quot;Placa inválida: &quot; + request.placa());</span>
+        }
+<span class="fc bfc" id="L34" title="All 2 branches covered.">        if (veiculoRepository.existsByPlaca(placaNormalizada)) {</span>
+<span class="fc" id="L35">            throw new RegraDeNegocioException(&quot;Já existe um veículo com a placa: &quot; + placaNormalizada);</span>
+        }
+<span class="fc" id="L37">        Cliente cliente = clienteRepository.findById(request.clienteId())</span>
+<span class="fc" id="L38">                .orElseThrow(() -&gt; new RecursoNaoEncontradoException(&quot;Cliente não encontrado: &quot; + request.clienteId()));</span>
+
+<span class="fc" id="L40">        Veiculo veiculo = Veiculo.builder()</span>
+<span class="fc" id="L41">                .placa(placaNormalizada)</span>
+<span class="fc" id="L42">                .marca(request.marca())</span>
+<span class="fc" id="L43">                .modelo(request.modelo())</span>
+<span class="fc" id="L44">                .ano(request.ano())</span>
+<span class="fc" id="L45">                .cliente(cliente)</span>
+<span class="fc" id="L46">                .build();</span>
+
+<span class="fc" id="L48">        VeiculoResponse response = VeiculoResponse.from(veiculoRepository.save(veiculo));</span>
+<span class="fc" id="L49">        log.info(&quot;Veículo criado id={} placa={}&quot;, response.id(), response.placa());</span>
+<span class="fc" id="L50">        return response;</span>
+    }
+
+    @Transactional(readOnly = true)
+    public List&lt;VeiculoResponse&gt; listar() {
+<span class="fc" id="L55">        log.info(&quot;Listando veículos&quot;);</span>
+<span class="fc" id="L56">        return veiculoRepository.findAll().stream().map(VeiculoResponse::from).toList();</span>
+    }
+
+    @Transactional(readOnly = true)
+    public VeiculoResponse buscarPorId(Long id) {
+<span class="fc" id="L61">        log.info(&quot;Buscando veículo id={}&quot;, id);</span>
+<span class="nc" id="L62">        return VeiculoResponse.from(buscarEntidadePorId(id));</span>
+    }
+
+    @Transactional(readOnly = true)
+    public VeiculoResponse buscarPorPlaca(String placa) {
+<span class="fc" id="L67">        log.info(&quot;Buscando veículo placa={}&quot;, placa);</span>
+<span class="fc" id="L68">        String placaNormalizada = PlacaValidator.normalizar(placa);</span>
+<span class="fc" id="L69">        return veiculoRepository.findByPlaca(placaNormalizada)</span>
+<span class="fc" id="L70">                .map(VeiculoResponse::from)</span>
+<span class="fc" id="L71">                .orElseThrow(() -&gt; new RecursoNaoEncontradoException(&quot;Veículo não encontrado com placa: &quot; + placa));</span>
+    }
+
+    @Transactional(readOnly = true)
+    public List&lt;VeiculoResponse&gt; listarPorCliente(Long clienteId) {
+<span class="fc" id="L76">        log.info(&quot;Listando veículos clienteId={}&quot;, clienteId);</span>
+<span class="fc" id="L77">        return veiculoRepository.findByClienteId(clienteId).stream().map(VeiculoResponse::from).toList();</span>
+    }
+
+        public VeiculoResponse atualizar(Long id, VeiculoRequest request) {
+<span class="fc" id="L81">        log.info(&quot;Atualizando veículo id={}&quot;, id);</span>
+<span class="fc" id="L82">        Veiculo veiculo = buscarEntidadePorId(id);</span>
+
+<span class="fc" id="L84">        String placaNormalizada = PlacaValidator.normalizar(request.placa());</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (!veiculo.getPlaca().equals(placaNormalizada)) {</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">            if (!PlacaValidator.isValida(placaNormalizada)) {</span>
+<span class="fc" id="L87">                throw new RegraDeNegocioException(&quot;Placa inválida: &quot; + request.placa());</span>
+            }
+<span class="fc bfc" id="L89" title="All 2 branches covered.">            if (veiculoRepository.existsByPlaca(placaNormalizada)) {</span>
+<span class="fc" id="L90">                throw new RegraDeNegocioException(&quot;Já existe um veículo com a placa: &quot; + placaNormalizada);</span>
+            }
+<span class="fc" id="L92">            veiculo.setPlaca(placaNormalizada);</span>
+        }
+
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        if (!veiculo.getCliente().getId().equals(request.clienteId())) {</span>
+<span class="fc" id="L96">            Cliente cliente = clienteRepository.findById(request.clienteId())</span>
+<span class="fc" id="L97">                    .orElseThrow(() -&gt; new RecursoNaoEncontradoException(&quot;Cliente não encontrado: &quot; + request.clienteId()));</span>
+<span class="fc" id="L98">            veiculo.setCliente(cliente);</span>
+        }
+
+<span class="fc" id="L101">        veiculo.setMarca(request.marca());</span>
+<span class="fc" id="L102">        veiculo.setModelo(request.modelo());</span>
+<span class="fc" id="L103">        veiculo.setAno(request.ano());</span>
+
+<span class="fc" id="L105">        return VeiculoResponse.from(veiculoRepository.save(veiculo));</span>
+    }
+
+        public void deletar(Long id) {
+<span class="fc" id="L109">        log.info(&quot;Desativando veículo id={}&quot;, id);</span>
+<span class="fc" id="L110">        Veiculo veiculo = buscarEntidadePorId(id);</span>
+<span class="fc" id="L111">        veiculo.setAtivo(false);</span>
+<span class="fc" id="L112">        veiculoRepository.save(veiculo);</span>
+<span class="fc" id="L113">    }</span>
+
+    public Veiculo buscarEntidadePorId(Long id) {
+<span class="fc" id="L116">        return veiculoRepository.findById(id)</span>
+<span class="fc" id="L117">                .orElseThrow(() -&gt; new RecursoNaoEncontradoException(&quot;Veículo não encontrado: &quot; + id));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>
