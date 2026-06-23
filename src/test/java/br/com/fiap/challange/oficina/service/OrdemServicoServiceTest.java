@@ -5,13 +5,18 @@ import br.com.fiap.challange.oficina.dto.request.ItemServicoRequest;
 import br.com.fiap.challange.oficina.dto.request.OrdemServicoRequest;
 import br.com.fiap.challange.oficina.dto.response.EstatisticasResponse;
 import br.com.fiap.challange.oficina.dto.response.OrdemServicoResponse;
-import br.com.fiap.challange.oficina.exception.EstoqueInsuficienteException;
-import br.com.fiap.challange.oficina.exception.RecursoNaoEncontradoException;
-import br.com.fiap.challange.oficina.exception.TransicaoStatusInvalidaException;
-import br.com.fiap.challange.oficina.model.*;
-import br.com.fiap.challange.oficina.model.enums.StatusOS;
-import br.com.fiap.challange.oficina.model.enums.TipoDocumento;
-import br.com.fiap.challange.oficina.repository.*;
+import br.com.fiap.challange.oficina.domain.exception.EstoqueInsuficienteException;
+import br.com.fiap.challange.oficina.domain.exception.RecursoNaoEncontradoException;
+import br.com.fiap.challange.oficina.domain.exception.TransicaoStatusInvalidaException;
+import br.com.fiap.challange.oficina.domain.model.*;
+import br.com.fiap.challange.oficina.domain.model.enums.StatusOS;
+import br.com.fiap.challange.oficina.domain.model.enums.TipoDocumento;
+import br.com.fiap.challange.oficina.application.usecase.OrdemServicoUseCase;
+import br.com.fiap.challange.oficina.domain.port.out.OrdemServicoRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.ClienteRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.VeiculoRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.ServicoRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.PecaRepositoryPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -33,18 +38,18 @@ import static org.mockito.Mockito.when;
 class OrdemServicoServiceTest {
 
     @Mock
-    private OrdemServicoRepository osRepository;
+    private OrdemServicoRepositoryPort osRepository;
     @Mock
-    private ClienteRepository clienteRepository;
+    private ClienteRepositoryPort clienteRepository;
     @Mock
-    private VeiculoRepository veiculoRepository;
+    private VeiculoRepositoryPort veiculoRepository;
     @Mock
-    private ServicoRepository servicoRepository;
+    private ServicoRepositoryPort servicoRepository;
     @Mock
-    private PecaRepository pecaRepository;
+    private PecaRepositoryPort pecaRepository;
 
     @InjectMocks
-    private OrdemServicoService osService;
+    private OrdemServicoUseCase osService;
 
     @Test
     void deveCriarOrdemServicoComSucesso() {

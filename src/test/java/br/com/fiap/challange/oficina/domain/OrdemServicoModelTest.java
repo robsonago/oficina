@@ -1,9 +1,9 @@
 package br.com.fiap.challange.oficina.domain;
 
-import br.com.fiap.challange.oficina.exception.TransicaoStatusInvalidaException;
-import br.com.fiap.challange.oficina.model.*;
-import br.com.fiap.challange.oficina.model.enums.StatusOS;
-import br.com.fiap.challange.oficina.model.enums.TipoDocumento;
+import br.com.fiap.challange.oficina.domain.exception.TransicaoStatusInvalidaException;
+import br.com.fiap.challange.oficina.domain.model.*;
+import br.com.fiap.challange.oficina.domain.model.enums.StatusOS;
+import br.com.fiap.challange.oficina.domain.model.enums.TipoDocumento;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;

@@ -2,10 +2,10 @@ package br.com.fiap.challange.oficina.integration;
 
 import br.com.fiap.challange.oficina.dto.request.AtualizarEstoqueRequest;
 import br.com.fiap.challange.oficina.dto.request.PecaRequest;
-import br.com.fiap.challange.oficina.model.Usuario;
-import br.com.fiap.challange.oficina.repository.PecaRepository;
-import br.com.fiap.challange.oficina.repository.UsuarioRepository;
-import br.com.fiap.challange.oficina.security.JwtService;
+import br.com.fiap.challange.oficina.domain.model.Usuario;
+import br.com.fiap.challange.oficina.domain.port.out.PecaRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.UsuarioRepositoryPort;
+import br.com.fiap.challange.oficina.infrastructure.security.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,9 +38,9 @@ class PecaControllerIT {
     @Autowired
     ObjectMapper objectMapper;
     @Autowired
-    PecaRepository pecaRepository;
+    PecaRepositoryPort pecaRepository;
     @Autowired
-    UsuarioRepository usuarioRepository;
+    UsuarioRepositoryPort usuarioRepository;
     @Autowired
     JwtService jwtService;
     @Autowired

@@ -10,6 +10,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import br.com.fiap.challange.oficina.infrastructure.security.JwtService;
 
 class JwtServiceTest {
 

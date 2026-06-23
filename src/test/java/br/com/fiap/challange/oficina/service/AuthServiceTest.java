@@ -3,10 +3,10 @@ package br.com.fiap.challange.oficina.service;
 import br.com.fiap.challange.oficina.dto.request.LoginRequest;
 import br.com.fiap.challange.oficina.dto.request.UsuarioRequest;
 import br.com.fiap.challange.oficina.dto.response.LoginResponse;
-import br.com.fiap.challange.oficina.exception.RegraDeNegocioException;
-import br.com.fiap.challange.oficina.model.Usuario;
-import br.com.fiap.challange.oficina.repository.UsuarioRepository;
-import br.com.fiap.challange.oficina.security.JwtService;
+import br.com.fiap.challange.oficina.domain.exception.RegraDeNegocioException;
+import br.com.fiap.challange.oficina.domain.model.Usuario;
+import br.com.fiap.challange.oficina.domain.port.out.UsuarioRepositoryPort;
+import br.com.fiap.challange.oficina.infrastructure.security.JwtService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -28,12 +28,13 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import br.com.fiap.challange.oficina.application.usecase.AuthUseCase;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
 
     @Mock
-    UsuarioRepository usuarioRepository;
+    UsuarioRepositoryPort usuarioRepository;
     @Mock
     PasswordEncoder passwordEncoder;
     @Mock
@@ -44,7 +45,7 @@ class AuthServiceTest {
     UserDetailsService userDetailsService;
 
     @InjectMocks
-    AuthService authService;
+    AuthUseCase authService;
 
     @Test
     void deveRealizarLoginComSucesso() {

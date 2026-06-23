@@ -1,7 +1,7 @@
 package br.com.fiap.challange.oficina.dto.response;
 
-import br.com.fiap.challange.oficina.model.OrdemServico;
-import br.com.fiap.challange.oficina.model.enums.StatusOS;
+import br.com.fiap.challange.oficina.domain.model.OrdemServico;
+import br.com.fiap.challange.oficina.domain.model.enums.StatusOS;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;

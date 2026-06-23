@@ -3,9 +3,9 @@ package br.com.fiap.challange.oficina.service;
 import br.com.fiap.challange.oficina.dto.request.AtualizarEstoqueRequest;
 import br.com.fiap.challange.oficina.dto.request.PecaRequest;
 import br.com.fiap.challange.oficina.dto.response.PecaResponse;
-import br.com.fiap.challange.oficina.exception.RecursoNaoEncontradoException;
-import br.com.fiap.challange.oficina.model.Peca;
-import br.com.fiap.challange.oficina.repository.PecaRepository;
+import br.com.fiap.challange.oficina.domain.exception.RecursoNaoEncontradoException;
+import br.com.fiap.challange.oficina.domain.model.Peca;
+import br.com.fiap.challange.oficina.domain.port.out.PecaRepositoryPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -20,15 +20,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import br.com.fiap.challange.oficina.application.usecase.PecaUseCase;
 
 @ExtendWith(MockitoExtension.class)
 class PecaServiceTest {
 
     @Mock
-    private PecaRepository pecaRepository;
+    private PecaRepositoryPort pecaRepository;
 
     @InjectMocks
-    private PecaService pecaService;
+    private PecaUseCase pecaService;
 
     @Test
     void deveCriarPecaComSucesso() {

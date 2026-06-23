@@ -1,9 +1,9 @@
 package br.com.fiap.challange.oficina.integration;
 
 import br.com.fiap.challange.oficina.dto.request.*;
-import br.com.fiap.challange.oficina.model.Usuario;
-import br.com.fiap.challange.oficina.repository.*;
-import br.com.fiap.challange.oficina.security.JwtService;
+import br.com.fiap.challange.oficina.domain.model.Usuario;
+
+import br.com.fiap.challange.oficina.infrastructure.security.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +25,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import br.com.fiap.challange.oficina.domain.port.out.OrdemServicoRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.VeiculoRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.ClienteRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.PecaRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.ServicoRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.UsuarioRepositoryPort;
+import br.com.fiap.challange.oficina.infrastructure.adapter.out.persistence.ItemServicoOSJpaRepository;
+import br.com.fiap.challange.oficina.infrastructure.adapter.out.persistence.ItemPecaOSJpaRepository;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -36,21 +44,21 @@ class OrdemServicoControllerIT {
     @Autowired
     ObjectMapper objectMapper;
     @Autowired
-    OrdemServicoRepository osRepository;
+    OrdemServicoRepositoryPort osRepository;
     @Autowired
-    ItemServicoOSRepository itemServicoOSRepository;
+    ItemServicoOSJpaRepository itemServicoOSRepository;
     @Autowired
-    ItemPecaOSRepository itemPecaOSRepository;
+    ItemPecaOSJpaRepository itemPecaOSRepository;
     @Autowired
-    VeiculoRepository veiculoRepository;
+    VeiculoRepositoryPort veiculoRepository;
     @Autowired
-    ClienteRepository clienteRepository;
+    ClienteRepositoryPort clienteRepository;
     @Autowired
-    UsuarioRepository usuarioRepository;
+    UsuarioRepositoryPort usuarioRepository;
     @Autowired
-    PecaRepository pecaRepository;
+    PecaRepositoryPort pecaRepository;
     @Autowired
-    ServicoRepository servicoRepository;
+    ServicoRepositoryPort servicoRepository;
     @Autowired
     JwtService jwtService;
     @Autowired

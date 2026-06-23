@@ -1,6 +1,6 @@
 package br.com.fiap.challange.oficina.dto.response;
 
-import br.com.fiap.challange.oficina.model.Veiculo;
+import br.com.fiap.challange.oficina.domain.model.Veiculo;
 
 import java.time.LocalDateTime;
 
