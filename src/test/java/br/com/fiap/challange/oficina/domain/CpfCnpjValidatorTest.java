@@ -1,7 +1,7 @@
 package br.com.fiap.challange.oficina.domain;
 
-import br.com.fiap.challange.oficina.model.enums.TipoDocumento;
-import br.com.fiap.challange.oficina.validator.CpfCnpjValidator;
+import br.com.fiap.challange.oficina.domain.model.enums.TipoDocumento;
+import br.com.fiap.challange.oficina.domain.validator.CpfCnpjValidator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;

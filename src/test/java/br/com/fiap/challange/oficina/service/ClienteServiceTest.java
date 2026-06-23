@@ -2,12 +2,12 @@ package br.com.fiap.challange.oficina.service;
 
 import br.com.fiap.challange.oficina.dto.request.ClienteRequest;
 import br.com.fiap.challange.oficina.dto.response.ClienteResponse;
-import br.com.fiap.challange.oficina.exception.DocumentoInvalidoException;
-import br.com.fiap.challange.oficina.exception.RecursoNaoEncontradoException;
-import br.com.fiap.challange.oficina.exception.RegraDeNegocioException;
-import br.com.fiap.challange.oficina.model.Cliente;
-import br.com.fiap.challange.oficina.model.enums.TipoDocumento;
-import br.com.fiap.challange.oficina.repository.ClienteRepository;
+import br.com.fiap.challange.oficina.domain.exception.DocumentoInvalidoException;
+import br.com.fiap.challange.oficina.domain.exception.RecursoNaoEncontradoException;
+import br.com.fiap.challange.oficina.domain.exception.RegraDeNegocioException;
+import br.com.fiap.challange.oficina.domain.model.Cliente;
+import br.com.fiap.challange.oficina.domain.model.enums.TipoDocumento;
+import br.com.fiap.challange.oficina.domain.port.out.ClienteRepositoryPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import br.com.fiap.challange.oficina.application.usecase.ClienteUseCase;
 
 @ExtendWith(MockitoExtension.class)
 class ClienteServiceTest {
@@ -30,9 +31,9 @@ class ClienteServiceTest {
     private static final String CPF_VALIDO = "52998224725";
     private static final String CPF_INVALIDO = "11111111111";
     @Mock
-    private ClienteRepository clienteRepository;
+    private ClienteRepositoryPort clienteRepository;
     @InjectMocks
-    private ClienteService clienteService;
+    private ClienteUseCase clienteService;
 
     @Test
     void deveCriarClienteComSucesso() {

@@ -1,6 +1,6 @@
 package br.com.fiap.challange.oficina.domain;
 
-import br.com.fiap.challange.oficina.validator.PlacaValidator;
+import br.com.fiap.challange.oficina.domain.validator.PlacaValidator;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 

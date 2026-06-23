@@ -2,13 +2,13 @@ package br.com.fiap.challange.oficina.service;
 
 import br.com.fiap.challange.oficina.dto.request.VeiculoRequest;
 import br.com.fiap.challange.oficina.dto.response.VeiculoResponse;
-import br.com.fiap.challange.oficina.exception.RecursoNaoEncontradoException;
-import br.com.fiap.challange.oficina.exception.RegraDeNegocioException;
-import br.com.fiap.challange.oficina.model.Cliente;
-import br.com.fiap.challange.oficina.model.Veiculo;
-import br.com.fiap.challange.oficina.model.enums.TipoDocumento;
-import br.com.fiap.challange.oficina.repository.ClienteRepository;
-import br.com.fiap.challange.oficina.repository.VeiculoRepository;
+import br.com.fiap.challange.oficina.domain.exception.RecursoNaoEncontradoException;
+import br.com.fiap.challange.oficina.domain.exception.RegraDeNegocioException;
+import br.com.fiap.challange.oficina.domain.model.Cliente;
+import br.com.fiap.challange.oficina.domain.model.Veiculo;
+import br.com.fiap.challange.oficina.domain.model.enums.TipoDocumento;
+import br.com.fiap.challange.oficina.domain.port.out.ClienteRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.VeiculoRepositoryPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,17 +23,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import br.com.fiap.challange.oficina.application.usecase.VeiculoUseCase;
 
 @ExtendWith(MockitoExtension.class)
 class VeiculoServiceTest {
 
     @Mock
-    VeiculoRepository veiculoRepository;
+    VeiculoRepositoryPort veiculoRepository;
     @Mock
-    ClienteRepository clienteRepository;
+    ClienteRepositoryPort clienteRepository;
 
     @InjectMocks
-    VeiculoService veiculoService;
+    VeiculoUseCase veiculoService;
 
     @Test
     void deveCriarVeiculoComSucesso() {
@@ -164,7 +165,7 @@ class VeiculoServiceTest {
     void deveAtualizarVeiculoComClienteDiferente() {
         Veiculo veiculo = veiculoPadrao(); // cliente id=1
         Cliente novoCliente = Cliente.builder().id(2L).nome("Carlos").documento("11144477735")
-                .tipoDocumento(br.com.fiap.challange.oficina.model.enums.TipoDocumento.CPF)
+                .tipoDocumento(br.com.fiap.challange.oficina.domain.model.enums.TipoDocumento.CPF)
                 .ativo(true).createdAt(java.time.LocalDateTime.now()).updatedAt(java.time.LocalDateTime.now()).build();
         when(veiculoRepository.findById(1L)).thenReturn(Optional.of(veiculo));
         when(clienteRepository.findById(2L)).thenReturn(Optional.of(novoCliente));

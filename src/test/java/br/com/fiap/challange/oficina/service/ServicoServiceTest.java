@@ -2,9 +2,9 @@ package br.com.fiap.challange.oficina.service;
 
 import br.com.fiap.challange.oficina.dto.request.ServicoRequest;
 import br.com.fiap.challange.oficina.dto.response.ServicoResponse;
-import br.com.fiap.challange.oficina.exception.RecursoNaoEncontradoException;
-import br.com.fiap.challange.oficina.model.Servico;
-import br.com.fiap.challange.oficina.repository.ServicoRepository;
+import br.com.fiap.challange.oficina.domain.exception.RecursoNaoEncontradoException;
+import br.com.fiap.challange.oficina.domain.model.Servico;
+import br.com.fiap.challange.oficina.domain.port.out.ServicoRepositoryPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -19,15 +19,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import br.com.fiap.challange.oficina.application.usecase.ServicoUseCase;
 
 @ExtendWith(MockitoExtension.class)
 class ServicoServiceTest {
 
     @Mock
-    private ServicoRepository servicoRepository;
+    private ServicoRepositoryPort servicoRepository;
 
     @InjectMocks
-    private ServicoService servicoService;
+    private ServicoUseCase servicoService;
 
     @Test
     void deveCriarServico() {
