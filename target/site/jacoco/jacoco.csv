@@ -23,7 +23,7 @@ oficina-mecanica,br.com.fiap.challange.oficina.infrastructure.security,UserDetai
 oficina-mecanica,br.com.fiap.challange.oficina.application.usecase,AuthUseCase,0,105,0,2,0,20,0,4,0,3
 oficina-mecanica,br.com.fiap.challange.oficina.application.usecase,ClienteUseCase,0,211,0,8,0,52,0,15,0,11
 oficina-mecanica,br.com.fiap.challange.oficina.application.usecase,PecaUseCase,0,157,0,4,0,36,0,11,0,9
-oficina-mecanica,br.com.fiap.challange.oficina.application.usecase,VeiculoUseCase,5,255,0,12,1,53,0,19,0,13
+oficina-mecanica,br.com.fiap.challange.oficina.application.usecase,VeiculoUseCase,5,216,0,12,1,48,1,18,1,12
 oficina-mecanica,br.com.fiap.challange.oficina.application.usecase,OrdemServicoUseCase,39,654,1,17,6,125,3,34,2,26
 oficina-mecanica,br.com.fiap.challange.oficina.application.usecase,ServicoUseCase,0,130,0,4,0,30,0,10,0,8
 oficina-mecanica,br.com.fiap.challange.oficina.domain.validator,PlacaValidator,4,34,2,6,0,8,2,5,0,3
