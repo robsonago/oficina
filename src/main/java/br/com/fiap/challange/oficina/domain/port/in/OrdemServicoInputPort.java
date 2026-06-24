@@ -1,6 +1,7 @@
 package br.com.fiap.challange.oficina.domain.port.in;
 
 import br.com.fiap.challange.oficina.domain.model.enums.StatusOS;
+import br.com.fiap.challange.oficina.dto.request.AprovacaoOrcamentoRequest;
 import br.com.fiap.challange.oficina.dto.request.ItemPecaRequest;
 import br.com.fiap.challange.oficina.dto.request.ItemServicoRequest;
 import br.com.fiap.challange.oficina.dto.request.OrdemServicoRequest;
@@ -12,6 +13,7 @@ import java.util.List;
 public interface OrdemServicoInputPort {
     OrdemServicoResponse criar(OrdemServicoRequest request);
     List<OrdemServicoResponse> listar();
+    List<OrdemServicoResponse> listarAtivas();
     OrdemServicoResponse buscarPorId(Long id);
     List<OrdemServicoResponse> listarPorStatus(StatusOS status);
     String consultarStatus(Long id);
@@ -19,6 +21,7 @@ public interface OrdemServicoInputPort {
     OrdemServicoResponse gerarOrcamento(Long id);
     OrdemServicoResponse aprovarOrcamento(Long id);
     OrdemServicoResponse rejeitarOrcamento(Long id);
+    OrdemServicoResponse aprovarOuRejeitarOrcamento(Long id, AprovacaoOrcamentoRequest request);
     OrdemServicoResponse finalizar(Long id);
     OrdemServicoResponse entregar(Long id);
     OrdemServicoResponse adicionarServico(Long osId, ItemServicoRequest request);

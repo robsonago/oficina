@@ -16,6 +16,7 @@ oficina-mecanica,br.com.fiap.challange.oficina.dto.request,LoginRequest,0,9,0,0,
 oficina-mecanica,br.com.fiap.challange.oficina.dto.request,ItemPecaRequest,0,9,0,0,0,1,0,1,0,1
 oficina-mecanica,br.com.fiap.challange.oficina.dto.request,OrdemServicoRequest,0,21,0,0,0,1,0,1,0,1
 oficina-mecanica,br.com.fiap.challange.oficina.dto.request,ItemServicoRequest,0,9,0,0,0,1,0,1,0,1
+oficina-mecanica,br.com.fiap.challange.oficina.dto.request,AprovacaoOrcamentoRequest,0,9,0,0,0,1,0,1,0,1
 oficina-mecanica,br.com.fiap.challange.oficina.dto.request,ClienteRequest,0,18,0,0,0,1,0,1,0,1
 oficina-mecanica,br.com.fiap.challange.oficina.infrastructure.security,JwtService,0,115,1,3,0,27,1,12,0,11
 oficina-mecanica,br.com.fiap.challange.oficina.infrastructure.security,JwtAuthenticationFilter,0,65,2,8,0,17,2,4,0,1
@@ -24,7 +25,7 @@ oficina-mecanica,br.com.fiap.challange.oficina.application.usecase,AuthUseCase,0
 oficina-mecanica,br.com.fiap.challange.oficina.application.usecase,ClienteUseCase,0,211,0,8,0,52,0,15,0,11
 oficina-mecanica,br.com.fiap.challange.oficina.application.usecase,PecaUseCase,0,157,0,4,0,36,0,11,0,9
 oficina-mecanica,br.com.fiap.challange.oficina.application.usecase,VeiculoUseCase,5,216,0,12,1,48,1,18,1,12
-oficina-mecanica,br.com.fiap.challange.oficina.application.usecase,OrdemServicoUseCase,39,654,1,17,6,125,3,34,2,26
+oficina-mecanica,br.com.fiap.challange.oficina.application.usecase,OrdemServicoUseCase,39,720,1,19,6,144,3,38,2,29
 oficina-mecanica,br.com.fiap.challange.oficina.application.usecase,ServicoUseCase,0,130,0,4,0,30,0,10,0,8
 oficina-mecanica,br.com.fiap.challange.oficina.domain.validator,PlacaValidator,4,34,2,6,0,8,2,5,0,3
 oficina-mecanica,br.com.fiap.challange.oficina.domain.validator,CpfCnpjValidator,13,328,10,34,2,34,10,18,0,5
@@ -33,7 +34,7 @@ oficina-mecanica,br.com.fiap.challange.oficina.infrastructure.adapter.in.rest,Gl
 oficina-mecanica,br.com.fiap.challange.oficina.infrastructure.adapter.in.rest,PecaController,0,40,0,0,0,7,0,6,0,6
 oficina-mecanica,br.com.fiap.challange.oficina.infrastructure.adapter.in.rest,ServicoController,0,33,0,0,0,6,0,5,0,5
 oficina-mecanica,br.com.fiap.challange.oficina.infrastructure.adapter.in.rest,VeiculoController,6,39,0,0,1,7,1,6,1,6
-oficina-mecanica,br.com.fiap.challange.oficina.infrastructure.adapter.in.rest,OrdemServicoController,0,91,0,0,0,16,0,14,0,14
+oficina-mecanica,br.com.fiap.challange.oficina.infrastructure.adapter.in.rest,OrdemServicoController,0,103,0,0,0,18,0,16,0,16
 oficina-mecanica,br.com.fiap.challange.oficina.infrastructure.adapter.in.rest,ClienteController,6,33,0,0,1,6,1,5,1,5
 oficina-mecanica,br.com.fiap.challange.oficina.infrastructure.adapter.in.rest,GlobalExceptionHandler.ErroResponse,0,15,0,0,0,1,0,1,0,1
 oficina-mecanica,br.com.fiap.challange.oficina.infrastructure.adapter.in.rest,AuthController,0,14,0,0,0,3,0,2,0,2
@@ -46,3 +47,5 @@ oficina-mecanica,br.com.fiap.challange.oficina.dto.response,LoginResponse,0,18,0
 oficina-mecanica,br.com.fiap.challange.oficina.dto.response,PecaResponse,0,47,0,0,0,4,0,2,0,2
 oficina-mecanica,br.com.fiap.challange.oficina.dto.response,VeiculoResponse,0,54,0,0,0,4,0,2,0,2
 oficina-mecanica,br.com.fiap.challange.oficina.dto.response,ServicoResponse,0,42,0,0,0,4,0,2,0,2
+oficina-mecanica,br.com.fiap.challange.oficina.infrastructure.adapter.out.email,JavaMailSenderEmailAdapter,98,11,3,1,14,4,3,2,1,2
+oficina-mecanica,br.com.fiap.challange.oficina.infrastructure.adapter.out.email,NoOpEmailAdapter,13,0,0,0,4,0,3,0,3,0

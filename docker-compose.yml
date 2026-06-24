@@ -18,6 +18,13 @@ services:
       timeout: 5s
       retries: 5
 
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: oficina-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
   app:
     build: .
     container_name: oficina-app
@@ -29,9 +36,25 @@ services:
       DB_PASSWORD: oficina123
       JWT_SECRET: bXlTdXBlclNlY3JldEtleUZvckpXVFN5c3RlbU9maWNpbmFNZWNhbmljYTIwMjQ=
       JWT_EXPIRATION: 86400000
+      # --- E-mail: Mailhog (ambiente local/dev) ---
+      MAIL_HOST: mailhog
+      MAIL_PORT: 1025
+      MAIL_AUTH: false
+      MAIL_STARTTLS: false
+      MAIL_FROM: oficina@localhost
+      # --- E-mail: Gmail (produção) — substitua e remova o bloco Mailhog acima ---
+      # MAIL_HOST: smtp.gmail.com
+      # MAIL_PORT: 587
+      # MAIL_USERNAME: seu-email@gmail.com
+      # MAIL_PASSWORD: sua-senha-de-app-google
+      # MAIL_AUTH: true
+      # MAIL_STARTTLS: true
+      # MAIL_FROM: seu-email@gmail.com
     depends_on:
       postgres:
         condition: service_healthy
+      mailhog:
+        condition: service_started
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1" ]
       interval: 30s

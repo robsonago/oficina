@@ -17,6 +17,7 @@ import br.com.fiap.challange.oficina.domain.port.out.ClienteRepositoryPort;
 import br.com.fiap.challange.oficina.domain.port.out.VeiculoRepositoryPort;
 import br.com.fiap.challange.oficina.domain.port.out.ServicoRepositoryPort;
 import br.com.fiap.challange.oficina.domain.port.out.PecaRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.EmailPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -47,6 +48,8 @@ class OrdemServicoServiceTest {
     private ServicoRepositoryPort servicoRepository;
     @Mock
     private PecaRepositoryPort pecaRepository;
+    @Mock
+    private EmailPort emailPort;
 
     @InjectMocks
     private OrdemServicoUseCase osService;
@@ -340,6 +343,58 @@ class OrdemServicoServiceTest {
         EstatisticasResponse stats = osService.calcularEstatisticas();
         assertThat(stats.tempoMedioExecucaoMinutos()).isGreaterThan(0L);
         assertThat(stats.totalOSFinalizadas()).isEqualTo(1);
+    }
+
+    @Test
+    void deveAprovarOrcamentoViaEndpointUnificado() {
+        OrdemServico os = osPadrao(StatusOS.AGUARDANDO_APROVACAO);
+        when(osRepository.findById(1L)).thenReturn(Optional.of(os));
+        when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        OrdemServicoResponse response = osService.aprovarOuRejeitarOrcamento(1L,
+                new br.com.fiap.challange.oficina.dto.request.AprovacaoOrcamentoRequest(true, null));
+        assertThat(response.status()).isEqualTo(StatusOS.EM_EXECUCAO);
+    }
+
+    @Test
+    void deveRejeitarOrcamentoViaEndpointUnificado() {
+        OrdemServico os = osPadrao(StatusOS.AGUARDANDO_APROVACAO);
+        when(osRepository.findById(1L)).thenReturn(Optional.of(os));
+        when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        OrdemServicoResponse response = osService.aprovarOuRejeitarOrcamento(1L,
+                new br.com.fiap.challange.oficina.dto.request.AprovacaoOrcamentoRequest(false, "Valor alto"));
+        assertThat(response.status()).isEqualTo(StatusOS.EM_DIAGNOSTICO);
+    }
+
+    @Test
+    void deveListarApenasOSAtivas() {
+        List<StatusOS> ativos = List.of(StatusOS.EM_EXECUCAO, StatusOS.AGUARDANDO_APROVACAO,
+                StatusOS.EM_DIAGNOSTICO, StatusOS.RECEBIDA);
+        OrdemServico osExecucao = osPadrao(StatusOS.EM_EXECUCAO);
+        OrdemServico osRecebida = osPadrao(StatusOS.RECEBIDA);
+        when(osRepository.findByStatusIn(ativos)).thenReturn(List.of(osRecebida, osExecucao));
+
+        List<OrdemServicoResponse> result = osService.listarAtivas();
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).status()).isEqualTo(StatusOS.EM_EXECUCAO);
+        assertThat(result.get(1).status()).isEqualTo(StatusOS.RECEBIDA);
+    }
+
+    @Test
+    void deveEnviarEmailAoGerarOrcamento() {
+        OrdemServico os = osPadrao(StatusOS.EM_DIAGNOSTICO);
+        os.getCliente().setEmail("cliente@email.com");
+        when(osRepository.findById(1L)).thenReturn(Optional.of(os));
+        when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        osService.gerarOrcamento(1L);
+
+        org.mockito.Mockito.verify(emailPort).enviarNotificacaoOrcamento(
+                org.mockito.ArgumentMatchers.eq("cliente@email.com"),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any());
     }
 
     private OrdemServico osPadrao(StatusOS status) {

@@ -214,6 +214,46 @@ class OrdemServicoControllerIT {
     }
 
     @Test
+    void deveListarOSAtivas() throws Exception {
+        mockMvc.perform(get("/api/ordens-servico/ativas")
+                        .header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].status").value("RECEBIDA"));
+    }
+
+    @Test
+    void deveAprovarOrcamentoViaEndpointUnificado() throws Exception {
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/iniciar-diagnostico")
+                .header("Authorization", token)).andExpect(status().isOk());
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/gerar-orcamento")
+                .header("Authorization", token)).andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/aprovacao-orcamento")
+                        .header("Authorization", token)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"aprovado\": true, \"observacao\": \"Cliente aprovou\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("EM_EXECUCAO"));
+    }
+
+    @Test
+    void deveRejeitarOrcamentoViaEndpointUnificado() throws Exception {
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/iniciar-diagnostico")
+                .header("Authorization", token)).andExpect(status().isOk());
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/gerar-orcamento")
+                .header("Authorization", token)).andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/aprovacao-orcamento")
+                        .header("Authorization", token)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"aprovado\": false, \"observacao\": \"Valor muito alto\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("EM_DIAGNOSTICO"));
+    }
+
+    @Test
     void deveAdicionarServicoAOrdem() throws Exception {
         String servicoJson = mockMvc.perform(post("/api/servicos")
                         .header("Authorization", token)

@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: br.com.fiap.challange.oficina.integration.AuthControllerIT
 -------------------------------------------------------------------------------
-Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.780 s -- in br.com.fiap.challange.oficina.integration.AuthControllerIT
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.483 s -- in br.com.fiap.challange.oficina.integration.AuthControllerIT

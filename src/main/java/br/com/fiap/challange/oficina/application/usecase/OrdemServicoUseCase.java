@@ -8,6 +8,7 @@ import br.com.fiap.challange.oficina.domain.port.in.OrdemServicoInputPort;
 import br.com.fiap.challange.oficina.domain.port.out.*;
 import br.com.fiap.challange.oficina.domain.validator.CpfCnpjValidator;
 import br.com.fiap.challange.oficina.domain.validator.PlacaValidator;
+import br.com.fiap.challange.oficina.dto.request.AprovacaoOrcamentoRequest;
 import br.com.fiap.challange.oficina.dto.request.ItemPecaRequest;
 import br.com.fiap.challange.oficina.dto.request.ItemServicoRequest;
 import br.com.fiap.challange.oficina.dto.request.OrdemServicoRequest;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,6 +35,7 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
     private final VeiculoRepositoryPort veiculoRepository;
     private final ServicoRepositoryPort servicoRepository;
     private final PecaRepositoryPort pecaRepository;
+    private final EmailPort emailPort;
 
     @Override
     public OrdemServicoResponse criar(OrdemServicoRequest request) {
@@ -93,6 +96,22 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
 
     @Override
     @Transactional(readOnly = true)
+    public List<OrdemServicoResponse> listarAtivas() {
+        log.info("Listando OSs ativas ordenadas por prioridade");
+        List<StatusOS> prioridade = List.of(
+                StatusOS.EM_EXECUCAO, StatusOS.AGUARDANDO_APROVACAO,
+                StatusOS.EM_DIAGNOSTICO, StatusOS.RECEBIDA);
+        return osRepository.findByStatusIn(prioridade)
+                .stream()
+                .sorted(Comparator
+                        .<OrdemServico, Integer>comparing(os -> prioridade.indexOf(os.getStatus()))
+                        .thenComparing(OrdemServico::getDataAbertura))
+                .map(OrdemServicoResponse::from)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public OrdemServicoResponse buscarPorId(Long id) {
         log.info("Buscando OS id={}", id);
         return OrdemServicoResponse.from(buscarEntidadePorId(id));
@@ -128,6 +147,11 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
         os.transicionarStatus(StatusOS.AGUARDANDO_APROVACAO);
         OrdemServicoResponse response = OrdemServicoResponse.from(osRepository.save(os));
         log.info("Orçamento gerado OS id={} valorTotal={}", id, response.valorTotal());
+        emailPort.enviarNotificacaoOrcamento(
+                os.getCliente().getEmail(),
+                os.getCliente().getNome(),
+                os.getNumero(),
+                os.getValorTotal());
         return response;
     }
 
@@ -154,6 +178,17 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
         OrdemServico os = buscarEntidadePorId(id);
         os.transicionarStatus(StatusOS.EM_DIAGNOSTICO);
         return OrdemServicoResponse.from(osRepository.save(os));
+    }
+
+    @Override
+    public OrdemServicoResponse aprovarOuRejeitarOrcamento(Long id, AprovacaoOrcamentoRequest request) {
+        if (Boolean.TRUE.equals(request.aprovado())) {
+            log.info("Aprovando orçamento via endpoint unificado OS id={}", id);
+            return aprovarOrcamento(id);
+        } else {
+            log.info("Rejeitando orçamento via endpoint unificado OS id={} observacao={}", id, request.observacao());
+            return rejeitarOrcamento(id);
+        }
     }
 
     @Override

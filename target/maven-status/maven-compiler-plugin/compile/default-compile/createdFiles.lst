@@ -1,4 +1,5 @@
 br/com/fiap/challange/oficina/dto/request/ClienteRequest.class
+br/com/fiap/challange/oficina/domain/port/out/EmailPort.class
 br/com/fiap/challange/oficina/dto/request/ItemPecaRequest.class
 br/com/fiap/challange/oficina/dto/request/ItemServicoRequest.class
 br/com/fiap/challange/oficina/domain/port/out/OrdemServicoRepositoryPort.class
@@ -73,14 +74,17 @@ br/com/fiap/challange/oficina/infrastructure/security/JwtService.class
 br/com/fiap/challange/oficina/domain/validator/CpfCnpjValidator.class
 br/com/fiap/challange/oficina/domain/model/OrdemServico.class
 br/com/fiap/challange/oficina/application/usecase/ServicoUseCase.class
+br/com/fiap/challange/oficina/dto/request/AprovacaoOrcamentoRequest.class
 br/com/fiap/challange/oficina/domain/model/Cliente.class
 br/com/fiap/challange/oficina/domain/port/in/ClienteInputPort.class
 br/com/fiap/challange/oficina/application/usecase/VeiculoUseCase.class
 br/com/fiap/challange/oficina/dto/response/ClienteResponse.class
 br/com/fiap/challange/oficina/dto/request/LoginRequest.class
+br/com/fiap/challange/oficina/infrastructure/adapter/out/email/JavaMailSenderEmailAdapter.class
 br/com/fiap/challange/oficina/OficinaApplication.class
 br/com/fiap/challange/oficina/dto/response/ItemServicoOSResponse.class
 br/com/fiap/challange/oficina/infrastructure/adapter/out/persistence/ItemServicoOSJpaRepository.class
 br/com/fiap/challange/oficina/domain/model/Peca.class
 br/com/fiap/challange/oficina/infrastructure/adapter/in/rest/OrdemServicoController.class
 br/com/fiap/challange/oficina/domain/exception/RecursoNaoEncontradoException.class
+br/com/fiap/challange/oficina/infrastructure/adapter/out/email/NoOpEmailAdapter.class

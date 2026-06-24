@@ -2,6 +2,7 @@ package br.com.fiap.challange.oficina.infrastructure.adapter.in.rest;
 
 import br.com.fiap.challange.oficina.domain.model.enums.StatusOS;
 import br.com.fiap.challange.oficina.domain.port.in.OrdemServicoInputPort;
+import br.com.fiap.challange.oficina.dto.request.AprovacaoOrcamentoRequest;
 import br.com.fiap.challange.oficina.dto.request.ItemPecaRequest;
 import br.com.fiap.challange.oficina.dto.request.ItemServicoRequest;
 import br.com.fiap.challange.oficina.dto.request.OrdemServicoRequest;
@@ -36,6 +37,12 @@ public class OrdemServicoController {
     @Operation(summary = "Listar todas as Ordens de Serviço")
     public ResponseEntity<List<OrdemServicoResponse>> listar() {
         return ResponseEntity.ok(osUseCase.listar());
+    }
+
+    @GetMapping("/ativas")
+    @Operation(summary = "Listar OS ativas ordenadas por prioridade (EM_EXECUCAO > AGUARDANDO_APROVACAO > EM_DIAGNOSTICO > RECEBIDA), excluindo FINALIZADA e ENTREGUE")
+    public ResponseEntity<List<OrdemServicoResponse>> listarAtivas() {
+        return ResponseEntity.ok(osUseCase.listarAtivas());
     }
 
     @GetMapping("/{id}")
@@ -81,6 +88,13 @@ public class OrdemServicoController {
     @Operation(summary = "Rejeitar orçamento - retorna para diagnóstico (AGUARDANDO_APROVACAO → EM_DIAGNOSTICO)")
     public ResponseEntity<OrdemServicoResponse> rejeitar(@PathVariable Long id) {
         return ResponseEntity.ok(osUseCase.rejeitarOrcamento(id));
+    }
+
+    @PostMapping("/{id}/aprovacao-orcamento")
+    @Operation(summary = "Aprovar ou rejeitar orçamento via body (aprovado: true → EM_EXECUCAO, false → EM_DIAGNOSTICO)")
+    public ResponseEntity<OrdemServicoResponse> aprovacaoOrcamento(@PathVariable Long id,
+                                                                   @Valid @RequestBody AprovacaoOrcamentoRequest request) {
+        return ResponseEntity.ok(osUseCase.aprovarOuRejeitarOrcamento(id, request));
     }
 
     @PostMapping("/{id}/finalizar")
