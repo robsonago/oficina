@@ -13,6 +13,8 @@ spec:
       labels:
         app: oficina-app
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: oficina-app
           # Para cloud: substitua pela tag :latest e garanta que a imagem foi publicada no GHCR

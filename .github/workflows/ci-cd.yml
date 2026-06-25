@@ -123,6 +123,14 @@ jobs:
           kubectl apply -f k8s/configmap.yaml
           kubectl apply -f k8s/secret.yaml
 
+      - name: Criar secret de autenticação do GHCR
+        run: |
+          kubectl -n oficina create secret docker-registry ghcr-secret \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.GITHUB_TOKEN }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Deploy do banco de dados (PostgreSQL)
         run: |
           kubectl apply -f k8s/deployment-postgres.yaml
