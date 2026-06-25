@@ -1,65 +1,89 @@
-version: '3.9'
+networks:
+  oficina-net:
+    driver: bridge
 
 services:
   postgres:
     image: postgres:16-alpine
     container_name: oficina-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: oficina
-      POSTGRES_USER: oficina
-      POSTGRES_PASSWORD: oficina123
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U oficina" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME}" ]
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          memory: 256M
+    networks:
+      - oficina-net
 
-  mailhog:
-    image: mailhog/mailhog:latest
-    container_name: oficina-mailhog
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: oficina-mailpit
+    restart: unless-stopped
     ports:
       - "1025:1025"
       - "8025:8025"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+        reservations:
+          memory: 64M
+    networks:
+      - oficina-net
 
   app:
     build: .
     container_name: oficina-app
+    restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/oficina
-      DB_USERNAME: oficina
-      DB_PASSWORD: oficina123
-      JWT_SECRET: bXlTdXBlclNlY3JldEtleUZvckpXVFN5c3RlbU9maWNpbmFNZWNhbmljYTIwMjQ=
-      JWT_EXPIRATION: 86400000
-      # --- E-mail: Mailhog (ambiente local/dev) ---
-      MAIL_HOST: mailhog
-      MAIL_PORT: 1025
-      MAIL_AUTH: false
-      MAIL_STARTTLS: false
-      MAIL_FROM: oficina@localhost
-      # --- E-mail: Gmail (produção) — substitua e remova o bloco Mailhog acima ---
-      # MAIL_HOST: smtp.gmail.com
-      # MAIL_PORT: 587
-      # MAIL_USERNAME: seu-email@gmail.com
-      # MAIL_PASSWORD: sua-senha-de-app-google
-      # MAIL_AUTH: true
-      # MAIL_STARTTLS: true
-      # MAIL_FROM: seu-email@gmail.com
+      JAVA_OPTS: ${JAVA_OPTS:-}
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT}
+      MAIL_AUTH: ${MAIL_AUTH}
+      MAIL_STARTTLS: ${MAIL_STARTTLS}
+      MAIL_FROM: ${MAIL_FROM}
     depends_on:
       postgres:
         condition: service_healthy
-      mailhog:
+      mailpit:
         condition: service_started
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          memory: 256M
+    networks:
+      - oficina-net
 
 volumes:
   pgdata:

@@ -31,3 +31,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Segredos — nunca commitar ###
+.env.oficina
+.env
