@@ -143,7 +143,7 @@ jobs:
           kubectl apply -f k8s/hpa.yaml
 
       - name: Aguardar aplicação ficar pronta
-        run: kubectl -n oficina rollout status deployment/oficina-app --timeout=300s
+        run: kubectl -n oficina rollout status deployment/oficina-app --timeout=600s
 
       - name: Status dos pods
         run: kubectl -n oficina get pods -o wide
