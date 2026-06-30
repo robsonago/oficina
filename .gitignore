@@ -35,3 +35,6 @@ build/
 ### Segredos — nunca commitar ###
 .env.oficina
 .env
+
+### Documentos locais de análise ###
+atividades/
