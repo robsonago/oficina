@@ -3,7 +3,7 @@
 #
 # [cluster]
 #   - Cluster kind com 1 nó control-plane
-#   - Port mappings: 30080 (API) e 30825 (Mailhog UI)
+#   - Port mappings: 30080 (API) e 30825 (Mailpit UI)
 #
 # [database]
 #   - Namespace: oficina
@@ -12,6 +12,13 @@
 #   - PersistentVolumeClaim: postgres-pvc (1Gi)
 #   - Deployment: postgres (imagem postgres:16-alpine)
 #   - Service: postgres (ClusterIP, porta 5432)
+#
+# [application]
+#   - Deployment: mailpit (axllent/mailpit:latest)
+#   - Service: mailpit (NodePort 30825)
+#   - Deployment: oficina-app (2 réplicas)
+#   - Service: oficina-app (NodePort 30080)
+#   - HPA: oficina-app-hpa (min 2, max 5, target CPU 70%)
 # ──────────────────────────────────────────
 
 output "cluster_name" {
@@ -34,22 +41,25 @@ output "postgres_service" {
   value       = module.database.postgres_service
 }
 
+output "app_service" {
+  description = "Nome do Service da aplicação"
+  value       = module.application.app_service
+}
+
+output "mailpit_service" {
+  description = "Nome do Service do Mailpit"
+  value       = module.application.mailpit_service
+}
+
 output "next_steps" {
-  description = "Próximos passos após terraform apply"
+  description = "URLs de acesso após o terraform apply"
   value       = <<-EOT
-    Cluster e banco de dados provisionados!
+    Ambiente completo provisionado pelo Terraform!
 
-    Para fazer o deploy da aplicação:
-      kubectl apply -f ../k8s/deployment-mailhog.yaml
-      kubectl apply -f ../k8s/service-mailhog.yaml
-      kubectl apply -f ../k8s/deployment-app.yaml
-      kubectl apply -f ../k8s/service-app.yaml
-      kubectl apply -f ../k8s/hpa.yaml
-
-    Para acessar após o deploy:
-      API:         http://localhost:30080
-      Swagger UI:  http://localhost:30080/swagger-ui.html
-      Mailhog UI:  http://localhost:30825
+    Acesso:
+      API:        http://localhost:30080
+      Swagger UI: http://localhost:30080/swagger-ui.html
+      Mailpit UI: http://localhost:30825
 
     Para destruir o ambiente:
       terraform destroy

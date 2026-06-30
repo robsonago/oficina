@@ -29,3 +29,9 @@ variable "jwt_secret" {
   sensitive   = true
   default     = "bXlTdXBlclNlY3JldEtleUZvckpXVFN5c3RlbU9maWNpbmFNZWNhbmljYTIwMjQ="
 }
+
+variable "app_image" {
+  description = "Imagem Docker da aplicação"
+  type        = string
+  default     = "ghcr.io/corpp00429/oficina-app:latest"
+}

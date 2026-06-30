@@ -15,10 +15,12 @@ terraform {
 
 provider "kind" {}
 
-# O provider kubernetes usa o contexto criado pelo módulo cluster
+# Credenciais diretas do kind_cluster — sem depender de ~/.kube/config
 provider "kubernetes" {
-  config_path    = "~/.kube/config"
-  config_context = "kind-${var.cluster_name}"
+  host                   = module.cluster.endpoint
+  client_certificate     = base64decode(module.cluster.client_certificate)
+  client_key             = base64decode(module.cluster.client_key)
+  cluster_ca_certificate = base64decode(module.cluster.cluster_ca_certificate)
 }
 
 # ──────────────────────────────────────────
@@ -43,4 +45,17 @@ module "database" {
   jwt_secret  = var.jwt_secret
 
   depends_on = [module.cluster]
+}
+
+# ──────────────────────────────────────────
+# Módulo: Aplicação
+# Provisiona Mailpit, Deployment da app,
+# Service da app e HPA
+# ──────────────────────────────────────────
+module "application" {
+  source    = "./modules/application"
+  namespace = var.namespace
+  app_image = var.app_image
+
+  depends_on = [module.database]
 }

@@ -26,12 +26,12 @@ resource "kubernetes_secret" "oficina" {
     namespace = kubernetes_namespace.this.metadata[0].name
   }
 
-  string_data = {
-    DB_USERNAME  = var.db_username
-    DB_PASSWORD  = var.db_password
-    JWT_SECRET   = var.jwt_secret
-    MAIL_USERNAME = ""
-    MAIL_PASSWORD = ""
+  data = {
+    DB_USERNAME   = base64encode(var.db_username)
+    DB_PASSWORD   = base64encode(var.db_password)
+    JWT_SECRET    = base64encode(var.jwt_secret)
+    MAIL_USERNAME = base64encode("")
+    MAIL_PASSWORD = base64encode("")
   }
 }
 
@@ -46,14 +46,14 @@ resource "kubernetes_config_map" "oficina" {
   }
 
   data = {
-    DB_URL        = "jdbc:postgresql://postgres:5432/${var.namespace}"
+    DB_URL         = "jdbc:postgresql://postgres:5432/${var.namespace}"
     JWT_EXPIRATION = "86400000"
-    MAIL_HOST     = "mailpit"
-    MAIL_PORT     = "1025"
-    MAIL_AUTH     = "false"
-    MAIL_STARTTLS = "false"
-    MAIL_FROM     = "oficina@localhost"
-    SERVER_PORT   = "8080"
+    MAIL_HOST      = "mailpit"
+    MAIL_PORT      = "1025"
+    MAIL_AUTH      = "false"
+    MAIL_STARTTLS  = "false"
+    MAIL_FROM      = "oficina@localhost"
+    SERVER_PORT    = "8080"
   }
 }
 
