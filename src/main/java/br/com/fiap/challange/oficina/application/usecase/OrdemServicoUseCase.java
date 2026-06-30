@@ -1,6 +1,7 @@
 package br.com.fiap.challange.oficina.application.usecase;
 
 import br.com.fiap.challange.oficina.domain.exception.EstoqueInsuficienteException;
+import br.com.fiap.challange.oficina.domain.exception.RegraDeNegocioException;
 import br.com.fiap.challange.oficina.domain.exception.RecursoNaoEncontradoException;
 import br.com.fiap.challange.oficina.domain.model.*;
 import br.com.fiap.challange.oficina.domain.model.enums.StatusOS;
@@ -210,6 +211,7 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
     public OrdemServico adicionarServico(Long osId, AdicionarItemServicoCommand command) {
         log.info("Adicionando serviço OS id={} servicoId={}", osId, command.servicoId());
         OrdemServico os = buscarEntidadePorId(osId);
+        validarStatusParaEdicaoDeItens(os);
         Servico servico = servicoRepository.findById(command.servicoId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Serviço não encontrado: " + command.servicoId()));
         ItemServicoOS item = ItemServicoOS.builder()
@@ -224,6 +226,7 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
     public OrdemServico adicionarPeca(Long osId, AdicionarItemPecaCommand command) {
         log.info("Adicionando peça OS id={} pecaId={}", osId, command.pecaId());
         OrdemServico os = buscarEntidadePorId(osId);
+        validarStatusParaEdicaoDeItens(os);
         Peca peca = pecaRepository.findById(command.pecaId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Peça não encontrada: " + command.pecaId()));
         validarEstoque(peca, command.quantidade());
@@ -259,6 +262,14 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
 
     private long contarPorStatus(List<OrdemServico> lista, StatusOS status) {
         return lista.stream().filter(os -> os.getStatus() == status).count();
+    }
+
+    private void validarStatusParaEdicaoDeItens(OrdemServico os) {
+        if (os.getStatus() != StatusOS.RECEBIDA && os.getStatus() != StatusOS.EM_DIAGNOSTICO) {
+            throw new RegraDeNegocioException(
+                    String.format("Itens só podem ser adicionados em OS com status RECEBIDA ou EM_DIAGNOSTICO. Status atual: %s",
+                            os.getStatus().getDescricao()));
+        }
     }
 
     private void validarEstoque(Peca peca, int quantidade) {

@@ -1,6 +1,7 @@
 package br.com.fiap.challange.oficina.service;
 
 import br.com.fiap.challange.oficina.domain.exception.EstoqueInsuficienteException;
+import br.com.fiap.challange.oficina.domain.exception.RegraDeNegocioException;
 import br.com.fiap.challange.oficina.domain.exception.RecursoNaoEncontradoException;
 import br.com.fiap.challange.oficina.domain.exception.TransicaoStatusInvalidaException;
 import br.com.fiap.challange.oficina.domain.model.*;
@@ -279,6 +280,34 @@ class OrdemServicoServiceTest {
 
         assertThatThrownBy(() -> osService.adicionarServico(1L, new AdicionarItemServicoCommand(99L, 1)))
                 .isInstanceOf(RecursoNaoEncontradoException.class);
+    }
+
+    @Test
+    void deveLancarExcecaoAoAdicionarServicoEmOSComStatusInvalido() {
+        for (StatusOS status : List.of(StatusOS.AGUARDANDO_APROVACAO, StatusOS.EM_EXECUCAO,
+                StatusOS.FINALIZADA, StatusOS.ENTREGUE)) {
+            OrdemServico os = osPadrao(status);
+            when(osRepository.findById(1L)).thenReturn(Optional.of(os));
+
+            assertThatThrownBy(() -> osService.adicionarServico(1L, new AdicionarItemServicoCommand(1L, 1)))
+                    .as("Deveria bloquear adição de serviço no status %s", status)
+                    .isInstanceOf(RegraDeNegocioException.class)
+                    .hasMessageContaining(status.getDescricao());
+        }
+    }
+
+    @Test
+    void deveLancarExcecaoAoAdicionarPecaEmOSComStatusInvalido() {
+        for (StatusOS status : List.of(StatusOS.AGUARDANDO_APROVACAO, StatusOS.EM_EXECUCAO,
+                StatusOS.FINALIZADA, StatusOS.ENTREGUE)) {
+            OrdemServico os = osPadrao(status);
+            when(osRepository.findById(1L)).thenReturn(Optional.of(os));
+
+            assertThatThrownBy(() -> osService.adicionarPeca(1L, new AdicionarItemPecaCommand(1L, 1)))
+                    .as("Deveria bloquear adição de peça no status %s", status)
+                    .isInstanceOf(RegraDeNegocioException.class)
+                    .hasMessageContaining(status.getDescricao());
+        }
     }
 
     @Test
