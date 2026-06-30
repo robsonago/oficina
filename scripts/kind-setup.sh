@@ -27,7 +27,7 @@ echo "=== Cluster kind ==="
 if kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
   echo "Cluster '${CLUSTER_NAME}' já existe"
 else
-  echo "🔧 Criando cluster '${CLUSTER_NAME}'..."
+  echo "Criando cluster '${CLUSTER_NAME}'..."
   kind create cluster --name "${CLUSTER_NAME}" --config "${SCRIPT_DIR}/kind-config.yaml"
 fi
 
@@ -55,10 +55,34 @@ echo "=== Aplicando manifestos Kubernetes ==="
 kubectl --context "${KUBE_CTX}" apply -f "${ROOT_DIR}/k8s/namespace.yaml"
 kubectl --context "${KUBE_CTX}" apply -f "${ROOT_DIR}/k8s/configmap.yaml"
 kubectl --context "${KUBE_CTX}" apply -f "${ROOT_DIR}/k8s/secret.yaml"
+
+echo ""
+echo "=== Criando secret de autenticação no GHCR ==="
+# Se GHCR_TOKEN estiver definido, usa credenciais reais.
+# Caso contrário cria o secret com valores placeholder —
+# suficiente para uso local onde a imagem já foi carregada via 'kind load'.
+kubectl --context "${KUBE_CTX}" -n oficina create secret docker-registry ghcr-secret \
+  --docker-server=ghcr.io \
+  --docker-username="${GHCR_USERNAME:-corpp00429}" \
+  --docker-password="${GHCR_TOKEN:-placeholder-local}" \
+  --dry-run=client -o yaml | kubectl --context "${KUBE_CTX}" apply -f -
+
+echo ""
+echo "=== Deploy do banco de dados ==="
 kubectl --context "${KUBE_CTX}" apply -f "${ROOT_DIR}/k8s/deployment-postgres.yaml"
 kubectl --context "${KUBE_CTX}" apply -f "${ROOT_DIR}/k8s/service-postgres.yaml"
-kubectl --context "${KUBE_CTX}" apply -f "${ROOT_DIR}/k8s/deployment-mailhog.yaml"
-kubectl --context "${KUBE_CTX}" apply -f "${ROOT_DIR}/k8s/service-mailhog.yaml"
+
+echo ""
+echo "=== Aguardando PostgreSQL ficar pronto ==="
+kubectl --context "${KUBE_CTX}" -n oficina rollout status deployment/postgres --timeout=120s
+
+echo ""
+echo "=== Deploy do Mailpit ==="
+kubectl --context "${KUBE_CTX}" apply -f "${ROOT_DIR}/k8s/deployment-mailpit.yaml"
+kubectl --context "${KUBE_CTX}" apply -f "${ROOT_DIR}/k8s/service-mailpit.yaml"
+
+echo ""
+echo "=== Deploy da aplicação ==="
 kubectl --context "${KUBE_CTX}" apply -f "${ROOT_DIR}/k8s/deployment-app.yaml"
 kubectl --context "${KUBE_CTX}" apply -f "${ROOT_DIR}/k8s/service-app.yaml"
 kubectl --context "${KUBE_CTX}" apply -f "${ROOT_DIR}/k8s/hpa.yaml"
@@ -67,11 +91,11 @@ echo ""
 echo "=== Aguardando pods ficarem prontos ==="
 echo "(pode levar até 3 minutos na primeira execução)"
 kubectl --context "${KUBE_CTX}" -n oficina wait \
-  --for=condition=ready pod -l app=postgres \
-  --timeout=120s
+  --for=condition=ready pod -l app=mailpit \
+  --timeout=60s
 kubectl --context "${KUBE_CTX}" -n oficina wait \
   --for=condition=ready pod -l app=oficina-app \
-  --timeout=180s
+  --timeout=300s
 
 echo ""
 echo "=== Status dos pods ==="
@@ -82,12 +106,12 @@ echo "=== Status do HPA ==="
 kubectl --context "${KUBE_CTX}" -n oficina get hpa
 
 echo ""
-echo " Ambiente pronto!"
+echo "Ambiente pronto!"
 echo ""
 echo "   API:          http://localhost:30080"
 echo "   Swagger UI:   http://localhost:30080/swagger-ui.html"
 echo "   Health:       http://localhost:30080/actuator/health"
-echo "   Mailhog UI:   http://localhost:30825"
+echo "   Mailpit UI:   http://localhost:30825"
 echo ""
 echo "Para derrubar o cluster:"
 echo "   kind delete cluster --name ${CLUSTER_NAME}"

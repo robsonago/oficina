@@ -8,6 +8,35 @@ terraform {
 }
 
 # ──────────────────────────────────────────
+# Secret de autenticação no GHCR
+# Necessário para pull da imagem em ambientes
+# sem pré-carregamento via 'kind load'.
+# Com token vazio, o secret existe mas não
+# autentica — funciona se a imagem já estiver
+# carregada localmente (IfNotPresent).
+# ──────────────────────────────────────────
+resource "kubernetes_secret" "ghcr" {
+  metadata {
+    name      = "ghcr-secret"
+    namespace = var.namespace
+  }
+
+  type = "kubernetes.io/dockerconfigjson"
+
+  data = {
+    ".dockerconfigjson" = jsonencode({
+      auths = {
+        "ghcr.io" = {
+          username = var.ghcr_username
+          password = var.ghcr_token
+          auth     = base64encode("${var.ghcr_username}:${var.ghcr_token}")
+        }
+      }
+    })
+  }
+}
+
+# ──────────────────────────────────────────
 # Mailpit — servidor SMTP fake para testes
 # ──────────────────────────────────────────
 resource "kubernetes_deployment" "mailpit" {
@@ -35,6 +64,25 @@ resource "kubernetes_deployment" "mailpit" {
 
           port { container_port = 1025 }
           port { container_port = 8025 }
+
+          readiness_probe {
+            http_get {
+              path = "/"
+              port = 8025
+            }
+            initial_delay_seconds = 5
+            period_seconds        = 5
+            failure_threshold     = 5
+          }
+
+          liveness_probe {
+            http_get {
+              path = "/"
+              port = 8025
+            }
+            period_seconds    = 30
+            failure_threshold = 3
+          }
 
           resources {
             requests = { cpu = "50m", memory = "64Mi" }
@@ -95,7 +143,7 @@ resource "kubernetes_deployment" "app" {
 
       spec {
         image_pull_secrets {
-          name = "ghcr-secret"
+          name = kubernetes_secret.ghcr.metadata[0].name
         }
 
         container {
@@ -147,6 +195,8 @@ resource "kubernetes_deployment" "app" {
       }
     }
   }
+
+  depends_on = [kubernetes_secret.ghcr]
 }
 
 resource "kubernetes_service" "app" {

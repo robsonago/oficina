@@ -10,6 +10,10 @@ terraform {
       source  = "hashicorp/kubernetes"
       version = "~> 2.30"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -53,9 +57,11 @@ module "database" {
 # Service da app e HPA
 # ──────────────────────────────────────────
 module "application" {
-  source    = "./modules/application"
-  namespace = var.namespace
-  app_image = var.app_image
+  source        = "./modules/application"
+  namespace     = var.namespace
+  app_image     = var.app_image
+  ghcr_username = var.ghcr_username
+  ghcr_token    = var.ghcr_token
 
   depends_on = [module.database]
 }
