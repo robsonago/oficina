@@ -90,8 +90,8 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
     @Override
     @Transactional(readOnly = true)
     public List<OrdemServico> listar() {
-        log.info("Listando OSs");
-        return osRepository.findAll();
+        log.info("Listando OSs ativas por prioridade");
+        return listarAtivas();
     }
 
     @Override

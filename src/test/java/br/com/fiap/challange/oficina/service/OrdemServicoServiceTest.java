@@ -235,7 +235,10 @@ class OrdemServicoServiceTest {
 
     @Test
     void deveListarTodasAsOS() {
-        when(osRepository.findAll()).thenReturn(List.of(osPadrao(StatusOS.RECEBIDA), osPadrao(StatusOS.EM_DIAGNOSTICO)));
+        List<StatusOS> ativos = List.of(StatusOS.EM_EXECUCAO, StatusOS.AGUARDANDO_APROVACAO,
+                StatusOS.EM_DIAGNOSTICO, StatusOS.RECEBIDA);
+        when(osRepository.findByStatusIn(ativos)).thenReturn(
+                List.of(osPadrao(StatusOS.RECEBIDA), osPadrao(StatusOS.EM_DIAGNOSTICO)));
 
         assertThat(osService.listar()).hasSize(2);
     }

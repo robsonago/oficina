@@ -45,7 +45,7 @@ public class OrdemServicoController {
     }
 
     @GetMapping
-    @Operation(summary = "Listar todas as Ordens de Serviço")
+    @Operation(summary = "Listar OS ativas ordenadas por prioridade (EM_EXECUCAO > AGUARDANDO_APROVACAO > EM_DIAGNOSTICO > RECEBIDA), excluindo FINALIZADA e ENTREGUE")
     public ResponseEntity<List<OrdemServicoResponse>> listar() {
         return ResponseEntity.ok(osUseCase.listar().stream().map(OrdemServicoResponse::from).toList());
     }
