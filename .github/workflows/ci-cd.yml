@@ -139,10 +139,10 @@ jobs:
       - name: Aguardar banco de dados ficar pronto
         run: kubectl -n oficina rollout status deployment/postgres --timeout=120s
 
-      - name: Deploy do Mailhog
+      - name: Deploy do Mailpit
         run: |
-          kubectl apply -f k8s/deployment-mailhog.yaml
-          kubectl apply -f k8s/service-mailhog.yaml
+          kubectl apply -f k8s/deployment-mailpit.yaml
+          kubectl apply -f k8s/service-mailpit.yaml
 
       - name: Deploy da aplicação
         run: |
