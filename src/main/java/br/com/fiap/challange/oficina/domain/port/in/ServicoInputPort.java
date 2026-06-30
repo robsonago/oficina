@@ -1,14 +1,14 @@
 package br.com.fiap.challange.oficina.domain.port.in;
 
-import br.com.fiap.challange.oficina.dto.request.ServicoRequest;
-import br.com.fiap.challange.oficina.dto.response.ServicoResponse;
+import br.com.fiap.challange.oficina.domain.model.Servico;
+import br.com.fiap.challange.oficina.domain.port.in.command.ServicoCommand;
 
 import java.util.List;
 
 public interface ServicoInputPort {
-    ServicoResponse criar(ServicoRequest request);
-    List<ServicoResponse> listar();
-    ServicoResponse buscarPorId(Long id);
-    ServicoResponse atualizar(Long id, ServicoRequest request);
+    Servico criar(ServicoCommand command);
+    List<Servico> listar();
+    Servico buscarPorId(Long id);
+    Servico atualizar(Long id, ServicoCommand command);
     void deletar(Long id);
 }

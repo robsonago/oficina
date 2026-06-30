@@ -1,6 +1,8 @@
 package br.com.fiap.challange.oficina.infrastructure.adapter.in.rest;
 
 import br.com.fiap.challange.oficina.domain.port.in.AuthInputPort;
+import br.com.fiap.challange.oficina.domain.port.in.command.LoginCommand;
+import br.com.fiap.challange.oficina.domain.port.in.command.RegistrarUsuarioCommand;
 import br.com.fiap.challange.oficina.dto.request.LoginRequest;
 import br.com.fiap.challange.oficina.dto.request.UsuarioRequest;
 import br.com.fiap.challange.oficina.dto.response.LoginResponse;
@@ -24,14 +26,16 @@ public class AuthController {
     @PostMapping("/login")
     @Operation(summary = "Realizar login e obter token JWT")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authUseCase.login(request));
+        LoginCommand command = new LoginCommand(request.username(), request.password());
+        return ResponseEntity.ok(LoginResponse.from(authUseCase.login(command)));
     }
 
     @PostMapping("/registrar")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Registrar novo usuário (somente ADMIN)")
     public ResponseEntity<Void> registrar(@Valid @RequestBody UsuarioRequest request) {
-        authUseCase.registrar(request);
+        RegistrarUsuarioCommand command = new RegistrarUsuarioCommand(request.username(), request.password(), request.role());
+        authUseCase.registrar(command);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 }

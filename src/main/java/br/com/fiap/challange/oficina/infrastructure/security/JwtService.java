@@ -1,5 +1,6 @@
 package br.com.fiap.challange.oficina.infrastructure.security;
 
+import br.com.fiap.challange.oficina.domain.port.out.TokenPort;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -15,7 +16,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 @Service
-public class JwtService {
+public class JwtService implements TokenPort {
 
     @Value("${jwt.secret}")
     private String secret;
@@ -23,19 +24,24 @@ public class JwtService {
     @Value("${jwt.expiration}")
     private Long expiration;
 
-    public String generateToken(UserDetails userDetails) {
+    @Override
+    public String generateToken(String username, String role) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("role", userDetails.getAuthorities().stream()
-                .findFirst().map(Object::toString).orElse(""));
-        return buildToken(claims, userDetails.getUsername(), expiration);
+        claims.put("role", role);
+        return buildToken(claims, username, expiration);
     }
 
-    private String buildToken(Map<String, Object> claims, String subject, long expiration) {
+    @Override
+    public long getExpiration() {
+        return expiration;
+    }
+
+    private String buildToken(Map<String, Object> claims, String subject, long expirationMs) {
         return Jwts.builder()
                 .claims(claims)
                 .subject(subject)
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + expiration))
+                .expiration(new Date(System.currentTimeMillis() + expirationMs))
                 .signWith(getSigningKey())
                 .compact();
     }
@@ -49,10 +55,6 @@ public class JwtService {
         return extractClaim(token, Claims::getSubject);
     }
 
-    public Long getExpiration() {
-        return expiration;
-    }
-
     private boolean isTokenExpired(String token) {
         return extractExpiration(token).before(new Date());
     }
@@ -62,8 +64,7 @@ public class JwtService {
     }
 
     private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
-        return claimsResolver.apply(claims);
+        return claimsResolver.apply(extractAllClaims(token));
     }
 
     private Claims extractAllClaims(String token) {

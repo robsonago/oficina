@@ -1,19 +1,17 @@
 package br.com.fiap.challange.oficina.application.usecase;
 
 import br.com.fiap.challange.oficina.domain.exception.RegraDeNegocioException;
+import br.com.fiap.challange.oficina.domain.model.AuthToken;
 import br.com.fiap.challange.oficina.domain.model.Usuario;
 import br.com.fiap.challange.oficina.domain.port.in.AuthInputPort;
+import br.com.fiap.challange.oficina.domain.port.in.command.LoginCommand;
+import br.com.fiap.challange.oficina.domain.port.in.command.RegistrarUsuarioCommand;
+import br.com.fiap.challange.oficina.domain.port.out.TokenPort;
 import br.com.fiap.challange.oficina.domain.port.out.UsuarioRepositoryPort;
-import br.com.fiap.challange.oficina.dto.request.LoginRequest;
-import br.com.fiap.challange.oficina.dto.request.UsuarioRequest;
-import br.com.fiap.challange.oficina.dto.response.LoginResponse;
-import br.com.fiap.challange.oficina.infrastructure.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,35 +25,32 @@ public class AuthUseCase implements AuthInputPort {
     private final UsuarioRepositoryPort usuarioRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
-    private final JwtService tokenService;
-    private final UserDetailsService userDetailsService;
+    private final TokenPort tokenPort;
 
     @Override
-    public LoginResponse login(LoginRequest request) {
-        log.info("Tentativa de login username={}", request.username());
+    public AuthToken login(LoginCommand command) {
+        log.info("Tentativa de login username={}", command.username());
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.username(), request.password())
+                new UsernamePasswordAuthenticationToken(command.username(), command.password())
         );
-        UserDetails userDetails = userDetailsService.loadUserByUsername(request.username());
-        String token = tokenService.generateToken(userDetails);
-
-        Usuario usuario = usuarioRepository.findByUsername(request.username()).orElseThrow();
+        Usuario usuario = usuarioRepository.findByUsername(command.username()).orElseThrow();
+        String token = tokenPort.generateToken(usuario.getUsername(), usuario.getRole());
         log.info("Login bem-sucedido username={} role={}", usuario.getUsername(), usuario.getRole());
-        return new LoginResponse(token, "Bearer", usuario.getUsername(), usuario.getRole(), tokenService.getExpiration());
+        return new AuthToken(token, "Bearer", usuario.getUsername(), usuario.getRole(), tokenPort.getExpiration());
     }
 
     @Override
-    public void registrar(UsuarioRequest request) {
-        log.info("Registrando usuário username={} role={}", request.username(), request.role());
-        if (usuarioRepository.existsByUsername(request.username())) {
-            throw new RegraDeNegocioException("Usuário já existe: " + request.username());
+    public void registrar(RegistrarUsuarioCommand command) {
+        log.info("Registrando usuário username={} role={}", command.username(), command.role());
+        if (usuarioRepository.existsByUsername(command.username())) {
+            throw new RegraDeNegocioException("Usuário já existe: " + command.username());
         }
         Usuario usuario = Usuario.builder()
-                .username(request.username())
-                .password(passwordEncoder.encode(request.password()))
-                .role(request.role())
+                .username(command.username())
+                .password(passwordEncoder.encode(command.password()))
+                .role(command.role())
                 .build();
         usuarioRepository.save(usuario);
-        log.info("Usuário registrado username={}", request.username());
+        log.info("Usuário registrado username={}", command.username());
     }
 }

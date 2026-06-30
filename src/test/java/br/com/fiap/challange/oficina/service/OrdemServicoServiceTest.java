@@ -1,16 +1,15 @@
 package br.com.fiap.challange.oficina.service;
 
-import br.com.fiap.challange.oficina.dto.request.ItemPecaRequest;
-import br.com.fiap.challange.oficina.dto.request.ItemServicoRequest;
-import br.com.fiap.challange.oficina.dto.request.OrdemServicoRequest;
-import br.com.fiap.challange.oficina.dto.response.EstatisticasResponse;
-import br.com.fiap.challange.oficina.dto.response.OrdemServicoResponse;
 import br.com.fiap.challange.oficina.domain.exception.EstoqueInsuficienteException;
 import br.com.fiap.challange.oficina.domain.exception.RecursoNaoEncontradoException;
 import br.com.fiap.challange.oficina.domain.exception.TransicaoStatusInvalidaException;
 import br.com.fiap.challange.oficina.domain.model.*;
 import br.com.fiap.challange.oficina.domain.model.enums.StatusOS;
 import br.com.fiap.challange.oficina.domain.model.enums.TipoDocumento;
+import br.com.fiap.challange.oficina.domain.port.in.command.AbrirOrdemServicoCommand;
+import br.com.fiap.challange.oficina.domain.port.in.command.AdicionarItemPecaCommand;
+import br.com.fiap.challange.oficina.domain.port.in.command.AdicionarItemServicoCommand;
+import br.com.fiap.challange.oficina.domain.port.in.command.AprovacaoOrcamentoCommand;
 import br.com.fiap.challange.oficina.application.usecase.OrdemServicoUseCase;
 import br.com.fiap.challange.oficina.domain.port.out.OrdemServicoRepositoryPort;
 import br.com.fiap.challange.oficina.domain.port.out.ClienteRepositoryPort;
@@ -56,7 +55,7 @@ class OrdemServicoServiceTest {
 
     @Test
     void deveCriarOrdemServicoComSucesso() {
-        OrdemServicoRequest request = new OrdemServicoRequest(
+        AbrirOrdemServicoCommand command = new AbrirOrdemServicoCommand(
                 "52998224725", "ABC1234", "Motor falhando", null, null, null);
 
         when(clienteRepository.findByDocumento("52998224725")).thenReturn(Optional.of(clientePadrao()));
@@ -71,37 +70,37 @@ class OrdemServicoServiceTest {
             return os;
         });
 
-        OrdemServicoResponse response = osService.criar(request);
-        assertThat(response.status()).isEqualTo(StatusOS.RECEBIDA);
-        assertThat(response.numero()).startsWith("OS-");
+        OrdemServico response = osService.criar(command);
+        assertThat(response.getStatus()).isEqualTo(StatusOS.RECEBIDA);
+        assertThat(response.getNumero()).startsWith("OS-");
     }
 
     @Test
     void deveLancarExcecaoQuandoClienteNaoEncontrado() {
-        OrdemServicoRequest request = new OrdemServicoRequest(
+        AbrirOrdemServicoCommand command = new AbrirOrdemServicoCommand(
                 "52998224725", "ABC1234", null, null, null, null);
         when(clienteRepository.findByDocumento("52998224725")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> osService.criar(request))
+        assertThatThrownBy(() -> osService.criar(command))
                 .isInstanceOf(RecursoNaoEncontradoException.class);
     }
 
     @Test
     void deveLancarExcecaoQuandoVeiculoNaoEncontrado() {
-        OrdemServicoRequest request = new OrdemServicoRequest(
+        AbrirOrdemServicoCommand command = new AbrirOrdemServicoCommand(
                 "52998224725", "ABC1234", null, null, null, null);
         when(clienteRepository.findByDocumento("52998224725")).thenReturn(Optional.of(clientePadrao()));
         when(veiculoRepository.findByPlaca("ABC1234")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> osService.criar(request))
+        assertThatThrownBy(() -> osService.criar(command))
                 .isInstanceOf(RecursoNaoEncontradoException.class);
     }
 
     @Test
     void deveCriarOSComServicos() {
-        OrdemServicoRequest request = new OrdemServicoRequest(
+        AbrirOrdemServicoCommand command = new AbrirOrdemServicoCommand(
                 "52998224725", "ABC1234", "Troca de óleo", null,
-                List.of(new ItemServicoRequest(1L, 1)), null);
+                List.of(new AdicionarItemServicoCommand(1L, 1)), null);
 
         when(clienteRepository.findByDocumento("52998224725")).thenReturn(Optional.of(clientePadrao()));
         when(veiculoRepository.findByPlaca("ABC1234")).thenReturn(Optional.of(veiculoPadrao()));
@@ -118,7 +117,7 @@ class OrdemServicoServiceTest {
             return os;
         });
 
-        OrdemServicoResponse response = osService.criar(request);
+        OrdemServico response = osService.criar(command);
         assertThat(response).isNotNull();
     }
 
@@ -127,15 +126,15 @@ class OrdemServicoServiceTest {
         Peca peca = pecaPadrao();
         peca.setQuantidadeEstoque(0);
 
-        OrdemServicoRequest request = new OrdemServicoRequest(
+        AbrirOrdemServicoCommand command = new AbrirOrdemServicoCommand(
                 "52998224725", "ABC1234", null, null, null,
-                List.of(new ItemPecaRequest(1L, 5)));
+                List.of(new AdicionarItemPecaCommand(1L, 5)));
 
         when(clienteRepository.findByDocumento("52998224725")).thenReturn(Optional.of(clientePadrao()));
         when(veiculoRepository.findByPlaca("ABC1234")).thenReturn(Optional.of(veiculoPadrao()));
         when(pecaRepository.findById(1L)).thenReturn(Optional.of(peca));
 
-        assertThatThrownBy(() -> osService.criar(request))
+        assertThatThrownBy(() -> osService.criar(command))
                 .isInstanceOf(EstoqueInsuficienteException.class);
     }
 
@@ -145,8 +144,8 @@ class OrdemServicoServiceTest {
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
         when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServicoResponse response = osService.iniciarDiagnostico(1L);
-        assertThat(response.status()).isEqualTo(StatusOS.EM_DIAGNOSTICO);
+        OrdemServico response = osService.iniciarDiagnostico(1L);
+        assertThat(response.getStatus()).isEqualTo(StatusOS.EM_DIAGNOSTICO);
     }
 
     @Test
@@ -155,8 +154,8 @@ class OrdemServicoServiceTest {
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
         when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServicoResponse response = osService.gerarOrcamento(1L);
-        assertThat(response.status()).isEqualTo(StatusOS.AGUARDANDO_APROVACAO);
+        OrdemServico response = osService.gerarOrcamento(1L);
+        assertThat(response.getStatus()).isEqualTo(StatusOS.AGUARDANDO_APROVACAO);
     }
 
     @Test
@@ -165,8 +164,8 @@ class OrdemServicoServiceTest {
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
         when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServicoResponse response = osService.aprovarOrcamento(1L);
-        assertThat(response.status()).isEqualTo(StatusOS.EM_EXECUCAO);
+        OrdemServico response = osService.aprovarOrcamento(1L);
+        assertThat(response.getStatus()).isEqualTo(StatusOS.EM_EXECUCAO);
     }
 
     @Test
@@ -175,8 +174,8 @@ class OrdemServicoServiceTest {
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
         when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServicoResponse response = osService.rejeitarOrcamento(1L);
-        assertThat(response.status()).isEqualTo(StatusOS.EM_DIAGNOSTICO);
+        OrdemServico response = osService.rejeitarOrcamento(1L);
+        assertThat(response.getStatus()).isEqualTo(StatusOS.EM_DIAGNOSTICO);
     }
 
     @Test
@@ -185,8 +184,8 @@ class OrdemServicoServiceTest {
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
         when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServicoResponse response = osService.finalizar(1L);
-        assertThat(response.status()).isEqualTo(StatusOS.FINALIZADA);
+        OrdemServico response = osService.finalizar(1L);
+        assertThat(response.getStatus()).isEqualTo(StatusOS.FINALIZADA);
     }
 
     @Test
@@ -195,8 +194,8 @@ class OrdemServicoServiceTest {
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
         when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServicoResponse response = osService.entregar(1L);
-        assertThat(response.status()).isEqualTo(StatusOS.ENTREGUE);
+        OrdemServico response = osService.entregar(1L);
+        assertThat(response.getStatus()).isEqualTo(StatusOS.ENTREGUE);
     }
 
     @Test
@@ -213,7 +212,7 @@ class OrdemServicoServiceTest {
         when(osRepository.findFinalizadasComTempo()).thenReturn(List.of());
         when(osRepository.findAll()).thenReturn(List.of());
 
-        EstatisticasResponse stats = osService.calcularEstatisticas();
+        Estatisticas stats = osService.calcularEstatisticas();
         assertThat(stats.tempoMedioExecucaoMinutos()).isEqualTo(0L);
     }
 
@@ -229,9 +228,9 @@ class OrdemServicoServiceTest {
         OrdemServico os = osPadrao(StatusOS.RECEBIDA);
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
 
-        OrdemServicoResponse response = osService.buscarPorId(1L);
-        assertThat(response.id()).isEqualTo(1L);
-        assertThat(response.status()).isEqualTo(StatusOS.RECEBIDA);
+        OrdemServico response = osService.buscarPorId(1L);
+        assertThat(response.getId()).isEqualTo(1L);
+        assertThat(response.getStatus()).isEqualTo(StatusOS.RECEBIDA);
     }
 
     @Test
@@ -264,7 +263,7 @@ class OrdemServicoServiceTest {
         when(servicoRepository.findById(1L)).thenReturn(Optional.of(servicoPadrao()));
         when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServicoResponse response = osService.adicionarServico(1L, new ItemServicoRequest(1L, 2));
+        OrdemServico response = osService.adicionarServico(1L, new AdicionarItemServicoCommand(1L, 2));
         assertThat(response).isNotNull();
         assertThat(os.getItensServico()).hasSize(1);
     }
@@ -275,7 +274,7 @@ class OrdemServicoServiceTest {
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
         when(servicoRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> osService.adicionarServico(1L, new ItemServicoRequest(99L, 1)))
+        assertThatThrownBy(() -> osService.adicionarServico(1L, new AdicionarItemServicoCommand(99L, 1)))
                 .isInstanceOf(RecursoNaoEncontradoException.class);
     }
 
@@ -286,7 +285,7 @@ class OrdemServicoServiceTest {
         when(pecaRepository.findById(1L)).thenReturn(Optional.of(pecaPadrao()));
         when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServicoResponse response = osService.adicionarPeca(1L, new ItemPecaRequest(1L, 2));
+        OrdemServico response = osService.adicionarPeca(1L, new AdicionarItemPecaCommand(1L, 2));
         assertThat(response).isNotNull();
         assertThat(os.getItensPeca()).hasSize(1);
     }
@@ -297,7 +296,7 @@ class OrdemServicoServiceTest {
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
         when(pecaRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> osService.adicionarPeca(1L, new ItemPecaRequest(99L, 1)))
+        assertThatThrownBy(() -> osService.adicionarPeca(1L, new AdicionarItemPecaCommand(99L, 1)))
                 .isInstanceOf(RecursoNaoEncontradoException.class);
     }
 
@@ -309,7 +308,7 @@ class OrdemServicoServiceTest {
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
         when(pecaRepository.findById(1L)).thenReturn(Optional.of(peca));
 
-        assertThatThrownBy(() -> osService.adicionarPeca(1L, new ItemPecaRequest(1L, 5)))
+        assertThatThrownBy(() -> osService.adicionarPeca(1L, new AdicionarItemPecaCommand(1L, 5)))
                 .isInstanceOf(EstoqueInsuficienteException.class);
     }
 
@@ -326,8 +325,8 @@ class OrdemServicoServiceTest {
         when(pecaRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServicoResponse response = osService.aprovarOrcamento(1L);
-        assertThat(response.status()).isEqualTo(StatusOS.EM_EXECUCAO);
+        OrdemServico response = osService.aprovarOrcamento(1L);
+        assertThat(response.getStatus()).isEqualTo(StatusOS.EM_EXECUCAO);
         assertThat(peca.getQuantidadeEstoque()).isEqualTo(7);
     }
 
@@ -340,7 +339,7 @@ class OrdemServicoServiceTest {
         when(osRepository.findFinalizadasComTempo()).thenReturn(List.of(osF));
         when(osRepository.findAll()).thenReturn(List.of(osF));
 
-        EstatisticasResponse stats = osService.calcularEstatisticas();
+        Estatisticas stats = osService.calcularEstatisticas();
         assertThat(stats.tempoMedioExecucaoMinutos()).isGreaterThan(0L);
         assertThat(stats.totalOSFinalizadas()).isEqualTo(1);
     }
@@ -351,9 +350,9 @@ class OrdemServicoServiceTest {
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
         when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServicoResponse response = osService.aprovarOuRejeitarOrcamento(1L,
-                new br.com.fiap.challange.oficina.dto.request.AprovacaoOrcamentoRequest(true, null));
-        assertThat(response.status()).isEqualTo(StatusOS.EM_EXECUCAO);
+        OrdemServico response = osService.aprovarOuRejeitarOrcamento(1L,
+                new AprovacaoOrcamentoCommand(true, null));
+        assertThat(response.getStatus()).isEqualTo(StatusOS.EM_EXECUCAO);
     }
 
     @Test
@@ -362,9 +361,9 @@ class OrdemServicoServiceTest {
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
         when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServicoResponse response = osService.aprovarOuRejeitarOrcamento(1L,
-                new br.com.fiap.challange.oficina.dto.request.AprovacaoOrcamentoRequest(false, "Valor alto"));
-        assertThat(response.status()).isEqualTo(StatusOS.EM_DIAGNOSTICO);
+        OrdemServico response = osService.aprovarOuRejeitarOrcamento(1L,
+                new AprovacaoOrcamentoCommand(false, "Valor alto"));
+        assertThat(response.getStatus()).isEqualTo(StatusOS.EM_DIAGNOSTICO);
     }
 
     @Test
@@ -375,10 +374,10 @@ class OrdemServicoServiceTest {
         OrdemServico osRecebida = osPadrao(StatusOS.RECEBIDA);
         when(osRepository.findByStatusIn(ativos)).thenReturn(List.of(osRecebida, osExecucao));
 
-        List<OrdemServicoResponse> result = osService.listarAtivas();
+        List<OrdemServico> result = osService.listarAtivas();
         assertThat(result).hasSize(2);
-        assertThat(result.get(0).status()).isEqualTo(StatusOS.EM_EXECUCAO);
-        assertThat(result.get(1).status()).isEqualTo(StatusOS.RECEBIDA);
+        assertThat(result.get(0).getStatus()).isEqualTo(StatusOS.EM_EXECUCAO);
+        assertThat(result.get(1).getStatus()).isEqualTo(StatusOS.RECEBIDA);
     }
 
     @Test

@@ -1,15 +1,15 @@
 package br.com.fiap.challange.oficina.domain.port.in;
 
-import br.com.fiap.challange.oficina.dto.request.ClienteRequest;
-import br.com.fiap.challange.oficina.dto.response.ClienteResponse;
+import br.com.fiap.challange.oficina.domain.model.Cliente;
+import br.com.fiap.challange.oficina.domain.port.in.command.ClienteCommand;
 
 import java.util.List;
 
 public interface ClienteInputPort {
-    ClienteResponse criar(ClienteRequest request);
-    List<ClienteResponse> listar();
-    ClienteResponse buscarPorId(Long id);
-    ClienteResponse buscarPorDocumento(String documento);
-    ClienteResponse atualizar(Long id, ClienteRequest request);
+    Cliente criar(ClienteCommand command);
+    List<Cliente> listar();
+    Cliente buscarPorId(Long id);
+    Cliente buscarPorDocumento(String documento);
+    Cliente atualizar(Long id, ClienteCommand command);
     void deletar(Long id);
 }

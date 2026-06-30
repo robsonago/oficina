@@ -78,9 +78,7 @@ class OrdemServicoControllerIT {
                     .username("tecnico_it").password(passwordEncoder.encode("senha123"))
                     .role("TECNICO").ativo(true).build());
         }
-        UserDetails userDetails = new User("tecnico_it", "senha123",
-                List.of(new SimpleGrantedAuthority("ROLE_TECNICO")));
-        token = "Bearer " + jwtService.generateToken(userDetails);
+        token = "Bearer " + jwtService.generateToken("tecnico_it", "TECNICO");
 
         String clienteResult = mockMvc.perform(post("/api/clientes")
                         .header("Authorization", token)

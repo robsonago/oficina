@@ -1,16 +1,16 @@
 package br.com.fiap.challange.oficina.domain.port.in;
 
-import br.com.fiap.challange.oficina.dto.request.AtualizarEstoqueRequest;
-import br.com.fiap.challange.oficina.dto.request.PecaRequest;
-import br.com.fiap.challange.oficina.dto.response.PecaResponse;
+import br.com.fiap.challange.oficina.domain.model.Peca;
+import br.com.fiap.challange.oficina.domain.port.in.command.AtualizarEstoqueCommand;
+import br.com.fiap.challange.oficina.domain.port.in.command.PecaCommand;
 
 import java.util.List;
 
 public interface PecaInputPort {
-    PecaResponse criar(PecaRequest request);
-    List<PecaResponse> listar();
-    PecaResponse buscarPorId(Long id);
-    PecaResponse atualizar(Long id, PecaRequest request);
-    PecaResponse atualizarEstoque(Long id, AtualizarEstoqueRequest request);
+    Peca criar(PecaCommand command);
+    List<Peca> listar();
+    Peca buscarPorId(Long id);
+    Peca atualizar(Long id, PecaCommand command);
+    Peca atualizarEstoque(Long id, AtualizarEstoqueCommand command);
     void deletar(Long id);
 }

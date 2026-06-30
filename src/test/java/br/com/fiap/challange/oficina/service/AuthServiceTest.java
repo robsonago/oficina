@@ -1,12 +1,12 @@
 package br.com.fiap.challange.oficina.service;
 
-import br.com.fiap.challange.oficina.dto.request.LoginRequest;
-import br.com.fiap.challange.oficina.dto.request.UsuarioRequest;
-import br.com.fiap.challange.oficina.dto.response.LoginResponse;
 import br.com.fiap.challange.oficina.domain.exception.RegraDeNegocioException;
+import br.com.fiap.challange.oficina.domain.model.AuthToken;
 import br.com.fiap.challange.oficina.domain.model.Usuario;
+import br.com.fiap.challange.oficina.domain.port.in.command.LoginCommand;
+import br.com.fiap.challange.oficina.domain.port.in.command.RegistrarUsuarioCommand;
+import br.com.fiap.challange.oficina.domain.port.out.TokenPort;
 import br.com.fiap.challange.oficina.domain.port.out.UsuarioRepositoryPort;
-import br.com.fiap.challange.oficina.infrastructure.security.JwtService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -14,14 +14,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -40,27 +35,22 @@ class AuthServiceTest {
     @Mock
     AuthenticationManager authenticationManager;
     @Mock
-    JwtService tokenService;
-    @Mock
-    UserDetailsService userDetailsService;
+    TokenPort tokenPort;
 
     @InjectMocks
     AuthUseCase authService;
 
     @Test
     void deveRealizarLoginComSucesso() {
-        LoginRequest request = new LoginRequest("admin", "admin123");
-        UserDetails userDetails = new User("admin", "encoded",
-                List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+        LoginCommand command = new LoginCommand("admin", "admin123");
         Usuario usuario = usuarioPadrao();
 
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(null);
-        when(userDetailsService.loadUserByUsername("admin")).thenReturn(userDetails);
-        when(tokenService.generateToken(userDetails)).thenReturn("jwt-token-test");
-        when(tokenService.getExpiration()).thenReturn(86400000L);
+        when(tokenPort.generateToken("admin", "ADMIN")).thenReturn("jwt-token-test");
+        when(tokenPort.getExpiration()).thenReturn(86400000L);
         when(usuarioRepository.findByUsername("admin")).thenReturn(Optional.of(usuario));
 
-        LoginResponse response = authService.login(request);
+        AuthToken response = authService.login(command);
 
         assertThat(response.token()).isEqualTo("jwt-token-test");
         assertThat(response.tipo()).isEqualTo("Bearer");
@@ -70,21 +60,21 @@ class AuthServiceTest {
 
     @Test
     void deveRegistrarNovoUsuario() {
-        UsuarioRequest request = new UsuarioRequest("tecnico1", "senha123", "TECNICO");
+        RegistrarUsuarioCommand command = new RegistrarUsuarioCommand("tecnico1", "senha123", "TECNICO");
         when(usuarioRepository.existsByUsername("tecnico1")).thenReturn(false);
         when(passwordEncoder.encode("senha123")).thenReturn("encoded-senha");
         when(usuarioRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        assertThatCode(() -> authService.registrar(request)).doesNotThrowAnyException();
+        assertThatCode(() -> authService.registrar(command)).doesNotThrowAnyException();
         verify(usuarioRepository).save(any());
     }
 
     @Test
     void deveLancarExcecaoUsuarioDuplicado() {
-        UsuarioRequest request = new UsuarioRequest("admin", "senha123", "ADMIN");
+        RegistrarUsuarioCommand command = new RegistrarUsuarioCommand("admin", "senha123", "ADMIN");
         when(usuarioRepository.existsByUsername("admin")).thenReturn(true);
 
-        assertThatThrownBy(() -> authService.registrar(request))
+        assertThatThrownBy(() -> authService.registrar(command))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessageContaining("admin");
     }

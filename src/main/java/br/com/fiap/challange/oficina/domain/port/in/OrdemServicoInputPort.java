@@ -1,30 +1,30 @@
 package br.com.fiap.challange.oficina.domain.port.in;
 
+import br.com.fiap.challange.oficina.domain.model.Estatisticas;
+import br.com.fiap.challange.oficina.domain.model.OrdemServico;
 import br.com.fiap.challange.oficina.domain.model.enums.StatusOS;
-import br.com.fiap.challange.oficina.dto.request.AprovacaoOrcamentoRequest;
-import br.com.fiap.challange.oficina.dto.request.ItemPecaRequest;
-import br.com.fiap.challange.oficina.dto.request.ItemServicoRequest;
-import br.com.fiap.challange.oficina.dto.request.OrdemServicoRequest;
-import br.com.fiap.challange.oficina.dto.response.EstatisticasResponse;
-import br.com.fiap.challange.oficina.dto.response.OrdemServicoResponse;
+import br.com.fiap.challange.oficina.domain.port.in.command.AbrirOrdemServicoCommand;
+import br.com.fiap.challange.oficina.domain.port.in.command.AdicionarItemPecaCommand;
+import br.com.fiap.challange.oficina.domain.port.in.command.AdicionarItemServicoCommand;
+import br.com.fiap.challange.oficina.domain.port.in.command.AprovacaoOrcamentoCommand;
 
 import java.util.List;
 
 public interface OrdemServicoInputPort {
-    OrdemServicoResponse criar(OrdemServicoRequest request);
-    List<OrdemServicoResponse> listar();
-    List<OrdemServicoResponse> listarAtivas();
-    OrdemServicoResponse buscarPorId(Long id);
-    List<OrdemServicoResponse> listarPorStatus(StatusOS status);
+    OrdemServico criar(AbrirOrdemServicoCommand command);
+    List<OrdemServico> listar();
+    List<OrdemServico> listarAtivas();
+    OrdemServico buscarPorId(Long id);
+    List<OrdemServico> listarPorStatus(StatusOS status);
     String consultarStatus(Long id);
-    OrdemServicoResponse iniciarDiagnostico(Long id);
-    OrdemServicoResponse gerarOrcamento(Long id);
-    OrdemServicoResponse aprovarOrcamento(Long id);
-    OrdemServicoResponse rejeitarOrcamento(Long id);
-    OrdemServicoResponse aprovarOuRejeitarOrcamento(Long id, AprovacaoOrcamentoRequest request);
-    OrdemServicoResponse finalizar(Long id);
-    OrdemServicoResponse entregar(Long id);
-    OrdemServicoResponse adicionarServico(Long osId, ItemServicoRequest request);
-    OrdemServicoResponse adicionarPeca(Long osId, ItemPecaRequest request);
-    EstatisticasResponse calcularEstatisticas();
+    OrdemServico iniciarDiagnostico(Long id);
+    OrdemServico gerarOrcamento(Long id);
+    OrdemServico aprovarOrcamento(Long id);
+    OrdemServico rejeitarOrcamento(Long id);
+    OrdemServico aprovarOuRejeitarOrcamento(Long id, AprovacaoOrcamentoCommand command);
+    OrdemServico finalizar(Long id);
+    OrdemServico entregar(Long id);
+    OrdemServico adicionarServico(Long osId, AdicionarItemServicoCommand command);
+    OrdemServico adicionarPeca(Long osId, AdicionarItemPecaCommand command);
+    Estatisticas calcularEstatisticas();
 }

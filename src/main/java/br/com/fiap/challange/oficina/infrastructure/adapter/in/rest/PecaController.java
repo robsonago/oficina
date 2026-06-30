@@ -1,6 +1,8 @@
 package br.com.fiap.challange.oficina.infrastructure.adapter.in.rest;
 
 import br.com.fiap.challange.oficina.domain.port.in.PecaInputPort;
+import br.com.fiap.challange.oficina.domain.port.in.command.AtualizarEstoqueCommand;
+import br.com.fiap.challange.oficina.domain.port.in.command.PecaCommand;
 import br.com.fiap.challange.oficina.dto.request.AtualizarEstoqueRequest;
 import br.com.fiap.challange.oficina.dto.request.PecaRequest;
 import br.com.fiap.challange.oficina.dto.response.PecaResponse;
@@ -25,33 +27,34 @@ public class PecaController {
     @PostMapping
     @Operation(summary = "Criar nova peça/insumo")
     public ResponseEntity<PecaResponse> criar(@Valid @RequestBody PecaRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(pecaUseCase.criar(request));
+        PecaCommand command = new PecaCommand(request.nome(), request.descricao(), request.precoUnitario(), request.quantidadeEstoque(), request.codigoReferencia());
+        return ResponseEntity.status(HttpStatus.CREATED).body(PecaResponse.from(pecaUseCase.criar(command)));
     }
 
     @GetMapping
     @Operation(summary = "Listar peças/insumos ativos")
     public ResponseEntity<List<PecaResponse>> listar() {
-        return ResponseEntity.ok(pecaUseCase.listar());
+        return ResponseEntity.ok(pecaUseCase.listar().stream().map(PecaResponse::from).toList());
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Buscar peça por ID")
     public ResponseEntity<PecaResponse> buscarPorId(@PathVariable Long id) {
-        return ResponseEntity.ok(pecaUseCase.buscarPorId(id));
+        return ResponseEntity.ok(PecaResponse.from(pecaUseCase.buscarPorId(id)));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Atualizar peça/insumo")
-    public ResponseEntity<PecaResponse> atualizar(@PathVariable Long id,
-                                                  @Valid @RequestBody PecaRequest request) {
-        return ResponseEntity.ok(pecaUseCase.atualizar(id, request));
+    public ResponseEntity<PecaResponse> atualizar(@PathVariable Long id, @Valid @RequestBody PecaRequest request) {
+        PecaCommand command = new PecaCommand(request.nome(), request.descricao(), request.precoUnitario(), request.quantidadeEstoque(), request.codigoReferencia());
+        return ResponseEntity.ok(PecaResponse.from(pecaUseCase.atualizar(id, command)));
     }
 
     @PatchMapping("/{id}/estoque")
     @Operation(summary = "Atualizar estoque de uma peça")
-    public ResponseEntity<PecaResponse> atualizarEstoque(@PathVariable Long id,
-                                                         @Valid @RequestBody AtualizarEstoqueRequest request) {
-        return ResponseEntity.ok(pecaUseCase.atualizarEstoque(id, request));
+    public ResponseEntity<PecaResponse> atualizarEstoque(@PathVariable Long id, @Valid @RequestBody AtualizarEstoqueRequest request) {
+        AtualizarEstoqueCommand command = new AtualizarEstoqueCommand(request.quantidade());
+        return ResponseEntity.ok(PecaResponse.from(pecaUseCase.atualizarEstoque(id, command)));
     }
 
     @DeleteMapping("/{id}")

@@ -50,9 +50,7 @@ class AuthControllerIT {
                     .username("admin_auth_it").password(passwordEncoder.encode("admin123"))
                     .role("ADMIN").ativo(true).build());
         }
-        UserDetails userDetails = new User("admin_auth_it", "admin123",
-                List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
-        adminToken = "Bearer " + jwtService.generateToken(userDetails);
+        adminToken = "Bearer " + jwtService.generateToken("admin_auth_it", "ADMIN");
     }
 
     @Test
@@ -100,9 +98,7 @@ class AuthControllerIT {
 
     @Test
     void deveRetornar403AoRegistrarSemPermissaoAdmin() throws Exception {
-        UserDetails tecnico = new User("tecnico_sem_permissao", "senha",
-                List.of(new SimpleGrantedAuthority("ROLE_TECNICO")));
-        String tecnicoToken = "Bearer " + jwtService.generateToken(tecnico);
+        String tecnicoToken = "Bearer " + jwtService.generateToken("tecnico_sem_permissao", "TECNICO");
 
         mockMvc.perform(post("/api/auth/registrar")
                         .header("Authorization", tecnicoToken)

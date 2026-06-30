@@ -1,16 +1,16 @@
 package br.com.fiap.challange.oficina.domain.port.in;
 
-import br.com.fiap.challange.oficina.dto.request.VeiculoRequest;
-import br.com.fiap.challange.oficina.dto.response.VeiculoResponse;
+import br.com.fiap.challange.oficina.domain.model.Veiculo;
+import br.com.fiap.challange.oficina.domain.port.in.command.VeiculoCommand;
 
 import java.util.List;
 
 public interface VeiculoInputPort {
-    VeiculoResponse criar(VeiculoRequest request);
-    List<VeiculoResponse> listar();
-    VeiculoResponse buscarPorId(Long id);
-    VeiculoResponse buscarPorPlaca(String placa);
-    List<VeiculoResponse> listarPorCliente(Long clienteId);
-    VeiculoResponse atualizar(Long id, VeiculoRequest request);
+    Veiculo criar(VeiculoCommand command);
+    List<Veiculo> listar();
+    Veiculo buscarPorId(Long id);
+    Veiculo buscarPorPlaca(String placa);
+    List<Veiculo> listarPorCliente(Long clienteId);
+    Veiculo atualizar(Long id, VeiculoCommand command);
     void deletar(Long id);
 }

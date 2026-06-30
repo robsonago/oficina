@@ -5,10 +5,9 @@ import br.com.fiap.challange.oficina.domain.exception.RecursoNaoEncontradoExcept
 import br.com.fiap.challange.oficina.domain.exception.RegraDeNegocioException;
 import br.com.fiap.challange.oficina.domain.model.Cliente;
 import br.com.fiap.challange.oficina.domain.port.in.ClienteInputPort;
+import br.com.fiap.challange.oficina.domain.port.in.command.ClienteCommand;
 import br.com.fiap.challange.oficina.domain.port.out.ClienteRepositoryPort;
 import br.com.fiap.challange.oficina.domain.validator.CpfCnpjValidator;
-import br.com.fiap.challange.oficina.dto.request.ClienteRequest;
-import br.com.fiap.challange.oficina.dto.response.ClienteResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,63 +24,60 @@ public class ClienteUseCase implements ClienteInputPort {
     private final ClienteRepositoryPort clienteRepository;
 
     @Override
-    public ClienteResponse criar(ClienteRequest request) {
-        log.info("Criando cliente nome={} documento={}", request.nome(), request.documento());
-        validarDocumento(request.documento());
-        String docNormalizado = CpfCnpjValidator.normalizar(request.documento());
+    public Cliente criar(ClienteCommand command) {
+        log.info("Criando cliente nome={} documento={}", command.nome(), command.documento());
+        validarDocumento(command.documento());
+        String docNormalizado = CpfCnpjValidator.normalizar(command.documento());
 
         if (clienteRepository.existsByDocumento(docNormalizado)) {
             throw new RegraDeNegocioException("Já existe um cliente com o documento: " + docNormalizado);
         }
 
         Cliente cliente = Cliente.builder()
-                .nome(request.nome())
+                .nome(command.nome())
                 .documento(docNormalizado)
                 .tipoDocumento(CpfCnpjValidator.detectarTipo(docNormalizado))
-                .email(request.email())
-                .telefone(request.telefone())
-                .endereco(request.endereco())
+                .email(command.email())
+                .telefone(command.telefone())
+                .endereco(command.endereco())
                 .build();
 
-        ClienteResponse response = ClienteResponse.from(clienteRepository.save(cliente));
-        log.info("Cliente criado id={}", response.id());
-        return response;
+        Cliente salvo = clienteRepository.save(cliente);
+        log.info("Cliente criado id={}", salvo.getId());
+        return salvo;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<ClienteResponse> listar() {
+    public List<Cliente> listar() {
         log.info("Listando clientes");
-        return clienteRepository.findAll().stream()
-                .map(ClienteResponse::from)
-                .toList();
+        return clienteRepository.findAll();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public ClienteResponse buscarPorId(Long id) {
+    public Cliente buscarPorId(Long id) {
         log.info("Buscando cliente id={}", id);
-        return ClienteResponse.from(buscarEntidadePorId(id));
+        return buscarEntidadePorId(id);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public ClienteResponse buscarPorDocumento(String documento) {
+    public Cliente buscarPorDocumento(String documento) {
         log.info("Buscando cliente documento={}", documento);
         String docNormalizado = CpfCnpjValidator.normalizar(documento);
         return clienteRepository.findByDocumento(docNormalizado)
-                .map(ClienteResponse::from)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado com documento: " + documento));
     }
 
     @Override
-    public ClienteResponse atualizar(Long id, ClienteRequest request) {
+    public Cliente atualizar(Long id, ClienteCommand command) {
         log.info("Atualizando cliente id={}", id);
         Cliente cliente = buscarEntidadePorId(id);
 
-        String docNormalizado = CpfCnpjValidator.normalizar(request.documento());
+        String docNormalizado = CpfCnpjValidator.normalizar(command.documento());
         if (!cliente.getDocumento().equals(docNormalizado)) {
-            validarDocumento(request.documento());
+            validarDocumento(command.documento());
             if (clienteRepository.existsByDocumento(docNormalizado)) {
                 throw new RegraDeNegocioException("Já existe um cliente com o documento: " + docNormalizado);
             }
@@ -89,12 +85,12 @@ public class ClienteUseCase implements ClienteInputPort {
             cliente.setTipoDocumento(CpfCnpjValidator.detectarTipo(docNormalizado));
         }
 
-        cliente.setNome(request.nome());
-        cliente.setEmail(request.email());
-        cliente.setTelefone(request.telefone());
-        cliente.setEndereco(request.endereco());
+        cliente.setNome(command.nome());
+        cliente.setEmail(command.email());
+        cliente.setTelefone(command.telefone());
+        cliente.setEndereco(command.endereco());
 
-        return ClienteResponse.from(clienteRepository.save(cliente));
+        return clienteRepository.save(cliente);
     }
 
     @Override
@@ -105,7 +101,7 @@ public class ClienteUseCase implements ClienteInputPort {
         clienteRepository.save(cliente);
     }
 
-    public Cliente buscarEntidadePorId(Long id) {
+    private Cliente buscarEntidadePorId(Long id) {
         return clienteRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado: " + id));
     }

@@ -61,9 +61,7 @@ class VeiculoControllerIT {
                     .username("admin_veiculo_it").password(passwordEncoder.encode("admin123"))
                     .role("ADMIN").ativo(true).build());
         }
-        UserDetails userDetails = new User("admin_veiculo_it", "admin123",
-                List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
-        token = "Bearer " + jwtService.generateToken(userDetails);
+        token = "Bearer " + jwtService.generateToken("admin_veiculo_it", "ADMIN");
 
         String clienteJson = mockMvc.perform(post("/api/clientes")
                         .header("Authorization", token)

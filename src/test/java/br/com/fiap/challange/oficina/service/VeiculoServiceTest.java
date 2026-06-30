@@ -1,12 +1,11 @@
 package br.com.fiap.challange.oficina.service;
 
-import br.com.fiap.challange.oficina.dto.request.VeiculoRequest;
-import br.com.fiap.challange.oficina.dto.response.VeiculoResponse;
 import br.com.fiap.challange.oficina.domain.exception.RecursoNaoEncontradoException;
 import br.com.fiap.challange.oficina.domain.exception.RegraDeNegocioException;
 import br.com.fiap.challange.oficina.domain.model.Cliente;
 import br.com.fiap.challange.oficina.domain.model.Veiculo;
 import br.com.fiap.challange.oficina.domain.model.enums.TipoDocumento;
+import br.com.fiap.challange.oficina.domain.port.in.command.VeiculoCommand;
 import br.com.fiap.challange.oficina.domain.port.out.ClienteRepositoryPort;
 import br.com.fiap.challange.oficina.domain.port.out.VeiculoRepositoryPort;
 import org.junit.jupiter.api.Test;
@@ -38,7 +37,7 @@ class VeiculoServiceTest {
 
     @Test
     void deveCriarVeiculoComSucesso() {
-        VeiculoRequest request = new VeiculoRequest("ABC-1234", "Toyota", "Corolla", 2020, 1L);
+        VeiculoCommand command = new VeiculoCommand("ABC-1234", "Toyota", "Corolla", 2020, 1L);
         when(veiculoRepository.existsByPlaca("ABC1234")).thenReturn(false);
         when(clienteRepository.findById(1L)).thenReturn(Optional.of(clientePadrao()));
         when(veiculoRepository.save(any())).thenAnswer(inv -> {
@@ -48,24 +47,24 @@ class VeiculoServiceTest {
             return v;
         });
 
-        VeiculoResponse response = veiculoService.criar(request);
-        assertThat(response.placa()).isEqualTo("ABC1234");
-        assertThat(response.marca()).isEqualTo("Toyota");
+        Veiculo response = veiculoService.criar(command);
+        assertThat(response.getPlaca()).isEqualTo("ABC1234");
+        assertThat(response.getMarca()).isEqualTo("Toyota");
     }
 
     @Test
     void deveRejeitarPlacaInvalida() {
-        VeiculoRequest request = new VeiculoRequest("AB123", "Toyota", "Corolla", 2020, 1L);
-        assertThatThrownBy(() -> veiculoService.criar(request))
+        VeiculoCommand command = new VeiculoCommand("AB123", "Toyota", "Corolla", 2020, 1L);
+        assertThatThrownBy(() -> veiculoService.criar(command))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessageContaining("inválida");
     }
 
     @Test
     void deveRejeitarPlacaDuplicada() {
-        VeiculoRequest request = new VeiculoRequest("ABC1234", "Toyota", "Corolla", 2020, 1L);
+        VeiculoCommand command = new VeiculoCommand("ABC1234", "Toyota", "Corolla", 2020, 1L);
         when(veiculoRepository.existsByPlaca("ABC1234")).thenReturn(true);
-        assertThatThrownBy(() -> veiculoService.criar(request))
+        assertThatThrownBy(() -> veiculoService.criar(command))
                 .isInstanceOf(RegraDeNegocioException.class);
     }
 
@@ -78,8 +77,8 @@ class VeiculoServiceTest {
     @Test
     void deveBuscarPorPlaca() {
         when(veiculoRepository.findByPlaca("ABC1234")).thenReturn(Optional.of(veiculoPadrao()));
-        VeiculoResponse response = veiculoService.buscarPorPlaca("abc-1234");
-        assertThat(response.placa()).isEqualTo("ABC1234");
+        Veiculo response = veiculoService.buscarPorPlaca("abc-1234");
+        assertThat(response.getPlaca()).isEqualTo("ABC1234");
     }
 
     @Test
@@ -101,10 +100,10 @@ class VeiculoServiceTest {
         when(veiculoRepository.findById(1L)).thenReturn(Optional.of(veiculo));
         when(veiculoRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        VeiculoResponse response = veiculoService.atualizar(1L,
-                new VeiculoRequest("ABC1234", "Honda", "Civic", 2022, 1L));
-        assertThat(response.marca()).isEqualTo("Honda");
-        assertThat(response.ano()).isEqualTo(2022);
+        Veiculo response = veiculoService.atualizar(1L,
+                new VeiculoCommand("ABC1234", "Honda", "Civic", 2022, 1L));
+        assertThat(response.getMarca()).isEqualTo("Honda");
+        assertThat(response.getAno()).isEqualTo(2022);
     }
 
     @Test
@@ -119,23 +118,23 @@ class VeiculoServiceTest {
 
     @Test
     void deveLancarExcecaoClienteNaoEncontradoNoCadastroVeiculo() {
-        VeiculoRequest request = new VeiculoRequest("ABC1234", "Toyota", "Corolla", 2020, 99L);
+        VeiculoCommand command = new VeiculoCommand("ABC1234", "Toyota", "Corolla", 2020, 99L);
         when(veiculoRepository.existsByPlaca("ABC1234")).thenReturn(false);
         when(clienteRepository.findById(99L)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> veiculoService.criar(request))
+        assertThatThrownBy(() -> veiculoService.criar(command))
                 .isInstanceOf(RecursoNaoEncontradoException.class);
     }
 
     @Test
     void deveAtualizarVeiculoComPlacaDiferenteValida() {
-        Veiculo veiculo = veiculoPadrao(); // placa ABC1234
+        Veiculo veiculo = veiculoPadrao();
         when(veiculoRepository.findById(1L)).thenReturn(Optional.of(veiculo));
         when(veiculoRepository.existsByPlaca("DEF5678")).thenReturn(false);
         when(veiculoRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        VeiculoResponse response = veiculoService.atualizar(1L,
-                new VeiculoRequest("DEF-5678", "Honda", "Civic", 2022, 1L));
-        assertThat(response.placa()).isEqualTo("DEF5678");
+        Veiculo response = veiculoService.atualizar(1L,
+                new VeiculoCommand("DEF-5678", "Honda", "Civic", 2022, 1L));
+        assertThat(response.getPlaca()).isEqualTo("DEF5678");
     }
 
     @Test
@@ -144,7 +143,7 @@ class VeiculoServiceTest {
         when(veiculoRepository.findById(1L)).thenReturn(Optional.of(veiculo));
 
         assertThatThrownBy(() -> veiculoService.atualizar(1L,
-                new VeiculoRequest("INVALIDA", "Honda", "Civic", 2022, 1L)))
+                new VeiculoCommand("INVALIDA", "Honda", "Civic", 2022, 1L)))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessageContaining("inválida");
     }
@@ -156,14 +155,14 @@ class VeiculoServiceTest {
         when(veiculoRepository.existsByPlaca("DEF5678")).thenReturn(true);
 
         assertThatThrownBy(() -> veiculoService.atualizar(1L,
-                new VeiculoRequest("DEF-5678", "Honda", "Civic", 2022, 1L)))
+                new VeiculoCommand("DEF-5678", "Honda", "Civic", 2022, 1L)))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessageContaining("DEF5678");
     }
 
     @Test
     void deveAtualizarVeiculoComClienteDiferente() {
-        Veiculo veiculo = veiculoPadrao(); // cliente id=1
+        Veiculo veiculo = veiculoPadrao();
         Cliente novoCliente = Cliente.builder().id(2L).nome("Carlos").documento("11144477735")
                 .tipoDocumento(br.com.fiap.challange.oficina.domain.model.enums.TipoDocumento.CPF)
                 .ativo(true).createdAt(java.time.LocalDateTime.now()).updatedAt(java.time.LocalDateTime.now()).build();
@@ -171,8 +170,8 @@ class VeiculoServiceTest {
         when(clienteRepository.findById(2L)).thenReturn(Optional.of(novoCliente));
         when(veiculoRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        VeiculoResponse response = veiculoService.atualizar(1L,
-                new VeiculoRequest("ABC1234", "Toyota", "Corolla", 2020, 2L));
+        Veiculo response = veiculoService.atualizar(1L,
+                new VeiculoCommand("ABC1234", "Toyota", "Corolla", 2020, 2L));
         assertThat(response).isNotNull();
     }
 
@@ -183,7 +182,7 @@ class VeiculoServiceTest {
         when(clienteRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> veiculoService.atualizar(1L,
-                new VeiculoRequest("ABC1234", "Toyota", "Corolla", 2020, 99L)))
+                new VeiculoCommand("ABC1234", "Toyota", "Corolla", 2020, 99L)))
                 .isInstanceOf(RecursoNaoEncontradoException.class);
     }
 

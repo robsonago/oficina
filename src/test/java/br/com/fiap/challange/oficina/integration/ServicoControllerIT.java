@@ -56,9 +56,7 @@ class ServicoControllerIT {
                     .username("admin_servico_it").password(passwordEncoder.encode("admin123"))
                     .role("ADMIN").ativo(true).build());
         }
-        UserDetails userDetails = new User("admin_servico_it", "admin123",
-                List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
-        token = "Bearer " + jwtService.generateToken(userDetails);
+        token = "Bearer " + jwtService.generateToken("admin_servico_it", "ADMIN");
     }
 
     @AfterEach

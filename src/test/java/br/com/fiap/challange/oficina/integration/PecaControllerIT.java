@@ -57,9 +57,7 @@ class PecaControllerIT {
                     .username("admin_peca_it").password(passwordEncoder.encode("admin123"))
                     .role("ADMIN").ativo(true).build());
         }
-        UserDetails userDetails = new User("admin_peca_it", "admin123",
-                List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
-        token = "Bearer " + jwtService.generateToken(userDetails);
+        token = "Bearer " + jwtService.generateToken("admin_peca_it", "ADMIN");
     }
 
     @AfterEach

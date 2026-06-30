@@ -3,9 +3,8 @@ package br.com.fiap.challange.oficina.application.usecase;
 import br.com.fiap.challange.oficina.domain.exception.RecursoNaoEncontradoException;
 import br.com.fiap.challange.oficina.domain.model.Servico;
 import br.com.fiap.challange.oficina.domain.port.in.ServicoInputPort;
+import br.com.fiap.challange.oficina.domain.port.in.command.ServicoCommand;
 import br.com.fiap.challange.oficina.domain.port.out.ServicoRepositoryPort;
-import br.com.fiap.challange.oficina.dto.request.ServicoRequest;
-import br.com.fiap.challange.oficina.dto.response.ServicoResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,44 +21,44 @@ public class ServicoUseCase implements ServicoInputPort {
     private final ServicoRepositoryPort servicoRepository;
 
     @Override
-    public ServicoResponse criar(ServicoRequest request) {
-        log.info("Criando serviço nome={}", request.nome());
+    public Servico criar(ServicoCommand command) {
+        log.info("Criando serviço nome={}", command.nome());
         Servico servico = Servico.builder()
-                .nome(request.nome())
-                .descricao(request.descricao())
-                .preco(request.preco())
-                .tempoEstimadoMinutos(request.tempoEstimadoMinutos() != null ? request.tempoEstimadoMinutos() : 60)
+                .nome(command.nome())
+                .descricao(command.descricao())
+                .preco(command.preco())
+                .tempoEstimadoMinutos(command.tempoEstimadoMinutos() != null ? command.tempoEstimadoMinutos() : 60)
                 .build();
-        ServicoResponse response = ServicoResponse.from(servicoRepository.save(servico));
-        log.info("Serviço criado id={}", response.id());
-        return response;
+        Servico salvo = servicoRepository.save(servico);
+        log.info("Serviço criado id={}", salvo.getId());
+        return salvo;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<ServicoResponse> listar() {
+    public List<Servico> listar() {
         log.info("Listando serviços");
-        return servicoRepository.findByAtivoTrue().stream().map(ServicoResponse::from).toList();
+        return servicoRepository.findByAtivoTrue();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public ServicoResponse buscarPorId(Long id) {
+    public Servico buscarPorId(Long id) {
         log.info("Buscando serviço id={}", id);
-        return ServicoResponse.from(buscarEntidadePorId(id));
+        return buscarEntidadePorId(id);
     }
 
     @Override
-    public ServicoResponse atualizar(Long id, ServicoRequest request) {
+    public Servico atualizar(Long id, ServicoCommand command) {
         log.info("Atualizando serviço id={}", id);
         Servico servico = buscarEntidadePorId(id);
-        servico.setNome(request.nome());
-        servico.setDescricao(request.descricao());
-        servico.setPreco(request.preco());
-        if (request.tempoEstimadoMinutos() != null) {
-            servico.setTempoEstimadoMinutos(request.tempoEstimadoMinutos());
+        servico.setNome(command.nome());
+        servico.setDescricao(command.descricao());
+        servico.setPreco(command.preco());
+        if (command.tempoEstimadoMinutos() != null) {
+            servico.setTempoEstimadoMinutos(command.tempoEstimadoMinutos());
         }
-        return ServicoResponse.from(servicoRepository.save(servico));
+        return servicoRepository.save(servico);
     }
 
     @Override
@@ -70,7 +69,7 @@ public class ServicoUseCase implements ServicoInputPort {
         servicoRepository.save(servico);
     }
 
-    public Servico buscarEntidadePorId(Long id) {
+    private Servico buscarEntidadePorId(Long id) {
         return servicoRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Serviço não encontrado: " + id));
     }

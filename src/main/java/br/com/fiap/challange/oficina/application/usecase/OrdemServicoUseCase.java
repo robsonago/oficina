@@ -5,20 +5,20 @@ import br.com.fiap.challange.oficina.domain.exception.RecursoNaoEncontradoExcept
 import br.com.fiap.challange.oficina.domain.model.*;
 import br.com.fiap.challange.oficina.domain.model.enums.StatusOS;
 import br.com.fiap.challange.oficina.domain.port.in.OrdemServicoInputPort;
+import br.com.fiap.challange.oficina.domain.port.in.command.AbrirOrdemServicoCommand;
+import br.com.fiap.challange.oficina.domain.port.in.command.AdicionarItemPecaCommand;
+import br.com.fiap.challange.oficina.domain.port.in.command.AdicionarItemServicoCommand;
+import br.com.fiap.challange.oficina.domain.port.in.command.AprovacaoOrcamentoCommand;
 import br.com.fiap.challange.oficina.domain.port.out.*;
 import br.com.fiap.challange.oficina.domain.validator.CpfCnpjValidator;
 import br.com.fiap.challange.oficina.domain.validator.PlacaValidator;
-import br.com.fiap.challange.oficina.dto.request.AprovacaoOrcamentoRequest;
-import br.com.fiap.challange.oficina.dto.request.ItemPecaRequest;
-import br.com.fiap.challange.oficina.dto.request.ItemServicoRequest;
-import br.com.fiap.challange.oficina.dto.request.OrdemServicoRequest;
-import br.com.fiap.challange.oficina.dto.response.EstatisticasResponse;
-import br.com.fiap.challange.oficina.dto.response.OrdemServicoResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.Year;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
@@ -38,28 +38,28 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
     private final EmailPort emailPort;
 
     @Override
-    public OrdemServicoResponse criar(OrdemServicoRequest request) {
-        log.info("Criando OS cliente={} placa={}", request.documentoCliente(), request.placaVeiculo());
-        String docNormalizado = CpfCnpjValidator.normalizar(request.documentoCliente());
+    public OrdemServico criar(AbrirOrdemServicoCommand command) {
+        log.info("Criando OS cliente={} placa={}", command.documentoCliente(), command.placaVeiculo());
+        String docNormalizado = CpfCnpjValidator.normalizar(command.documentoCliente());
         Cliente cliente = clienteRepository.findByDocumento(docNormalizado)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado com documento: " + request.documentoCliente()));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado com documento: " + command.documentoCliente()));
 
-        String placaNormalizada = PlacaValidator.normalizar(request.placaVeiculo());
+        String placaNormalizada = PlacaValidator.normalizar(command.placaVeiculo());
         Veiculo veiculo = veiculoRepository.findByPlaca(placaNormalizada)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Veículo não encontrado com placa: " + request.placaVeiculo()));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Veículo não encontrado com placa: " + command.placaVeiculo()));
 
         OrdemServico os = OrdemServico.builder()
                 .numero(gerarNumero())
                 .cliente(cliente)
                 .veiculo(veiculo)
                 .status(StatusOS.RECEBIDA)
-                .descricaoProblema(request.descricaoProblema())
-                .observacoes(request.observacoes())
-                .dataAbertura(java.time.LocalDateTime.now())
+                .descricaoProblema(command.descricaoProblema())
+                .observacoes(command.observacoes())
+                .dataAbertura(LocalDateTime.now())
                 .build();
 
-        if (request.servicos() != null) {
-            for (ItemServicoRequest item : request.servicos()) {
+        if (command.servicos() != null) {
+            for (AdicionarItemServicoCommand item : command.servicos()) {
                 Servico servico = servicoRepository.findById(item.servicoId())
                         .orElseThrow(() -> new RecursoNaoEncontradoException("Serviço não encontrado: " + item.servicoId()));
                 ItemServicoOS itemOS = ItemServicoOS.builder()
@@ -69,8 +69,8 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
             }
         }
 
-        if (request.pecas() != null) {
-            for (ItemPecaRequest item : request.pecas()) {
+        if (command.pecas() != null) {
+            for (AdicionarItemPecaCommand item : command.pecas()) {
                 Peca peca = pecaRepository.findById(item.pecaId())
                         .orElseThrow(() -> new RecursoNaoEncontradoException("Peça não encontrada: " + item.pecaId()));
                 validarEstoque(peca, item.quantidade());
@@ -82,21 +82,21 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
         }
 
         os.recalcularTotal();
-        OrdemServicoResponse response = OrdemServicoResponse.from(osRepository.save(os));
-        log.info("OS criada numero={} id={} valorTotal={}", response.numero(), response.id(), response.valorTotal());
-        return response;
+        OrdemServico salva = osRepository.save(os);
+        log.info("OS criada numero={} id={} valorTotal={}", salva.getNumero(), salva.getId(), salva.getValorTotal());
+        return salva;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<OrdemServicoResponse> listar() {
+    public List<OrdemServico> listar() {
         log.info("Listando OSs");
-        return osRepository.findAll().stream().map(OrdemServicoResponse::from).toList();
+        return osRepository.findAll();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<OrdemServicoResponse> listarAtivas() {
+    public List<OrdemServico> listarAtivas() {
         log.info("Listando OSs ativas ordenadas por prioridade");
         List<StatusOS> prioridade = List.of(
                 StatusOS.EM_EXECUCAO, StatusOS.AGUARDANDO_APROVACAO,
@@ -106,22 +106,21 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
                 .sorted(Comparator
                         .<OrdemServico, Integer>comparing(os -> prioridade.indexOf(os.getStatus()))
                         .thenComparing(OrdemServico::getDataAbertura))
-                .map(OrdemServicoResponse::from)
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public OrdemServicoResponse buscarPorId(Long id) {
+    public OrdemServico buscarPorId(Long id) {
         log.info("Buscando OS id={}", id);
-        return OrdemServicoResponse.from(buscarEntidadePorId(id));
+        return buscarEntidadePorId(id);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<OrdemServicoResponse> listarPorStatus(StatusOS status) {
+    public List<OrdemServico> listarPorStatus(StatusOS status) {
         log.info("Listando OSs status={}", status);
-        return osRepository.findByStatus(status).stream().map(OrdemServicoResponse::from).toList();
+        return osRepository.findByStatus(status);
     }
 
     @Override
@@ -132,31 +131,31 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
     }
 
     @Override
-    public OrdemServicoResponse iniciarDiagnostico(Long id) {
+    public OrdemServico iniciarDiagnostico(Long id) {
         log.info("Iniciando diagnóstico OS id={}", id);
         OrdemServico os = buscarEntidadePorId(id);
         os.transicionarStatus(StatusOS.EM_DIAGNOSTICO);
-        return OrdemServicoResponse.from(osRepository.save(os));
+        return osRepository.save(os);
     }
 
     @Override
-    public OrdemServicoResponse gerarOrcamento(Long id) {
+    public OrdemServico gerarOrcamento(Long id) {
         log.info("Gerando orçamento OS id={}", id);
         OrdemServico os = buscarEntidadePorId(id);
         os.recalcularTotal();
         os.transicionarStatus(StatusOS.AGUARDANDO_APROVACAO);
-        OrdemServicoResponse response = OrdemServicoResponse.from(osRepository.save(os));
-        log.info("Orçamento gerado OS id={} valorTotal={}", id, response.valorTotal());
+        OrdemServico salva = osRepository.save(os);
+        log.info("Orçamento gerado OS id={} valorTotal={}", id, salva.getValorTotal());
         emailPort.enviarNotificacaoOrcamento(
                 os.getCliente().getEmail(),
                 os.getCliente().getNome(),
                 os.getNumero(),
                 os.getValorTotal());
-        return response;
+        return salva;
     }
 
     @Override
-    public OrdemServicoResponse aprovarOrcamento(Long id) {
+    public OrdemServico aprovarOrcamento(Long id) {
         log.info("Aprovando orçamento OS id={}", id);
         OrdemServico os = buscarEntidadePorId(id);
         for (ItemPecaOS item : os.getItensPeca()) {
@@ -169,75 +168,75 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
             pecaRepository.save(peca);
             log.info("Estoque baixado peça id={} nome={} qtd={}", peca.getId(), peca.getNome(), item.getQuantidade());
         }
-        return OrdemServicoResponse.from(osRepository.save(os));
+        return osRepository.save(os);
     }
 
     @Override
-    public OrdemServicoResponse rejeitarOrcamento(Long id) {
+    public OrdemServico rejeitarOrcamento(Long id) {
         log.info("Rejeitando orçamento OS id={}", id);
         OrdemServico os = buscarEntidadePorId(id);
         os.transicionarStatus(StatusOS.EM_DIAGNOSTICO);
-        return OrdemServicoResponse.from(osRepository.save(os));
+        return osRepository.save(os);
     }
 
     @Override
-    public OrdemServicoResponse aprovarOuRejeitarOrcamento(Long id, AprovacaoOrcamentoRequest request) {
-        if (Boolean.TRUE.equals(request.aprovado())) {
+    public OrdemServico aprovarOuRejeitarOrcamento(Long id, AprovacaoOrcamentoCommand command) {
+        if (Boolean.TRUE.equals(command.aprovado())) {
             log.info("Aprovando orçamento via endpoint unificado OS id={}", id);
             return aprovarOrcamento(id);
         } else {
-            log.info("Rejeitando orçamento via endpoint unificado OS id={} observacao={}", id, request.observacao());
+            log.info("Rejeitando orçamento via endpoint unificado OS id={} observacao={}", id, command.observacao());
             return rejeitarOrcamento(id);
         }
     }
 
     @Override
-    public OrdemServicoResponse finalizar(Long id) {
+    public OrdemServico finalizar(Long id) {
         log.info("Finalizando OS id={}", id);
         OrdemServico os = buscarEntidadePorId(id);
         os.transicionarStatus(StatusOS.FINALIZADA);
-        return OrdemServicoResponse.from(osRepository.save(os));
+        return osRepository.save(os);
     }
 
     @Override
-    public OrdemServicoResponse entregar(Long id) {
+    public OrdemServico entregar(Long id) {
         log.info("Registrando entrega OS id={}", id);
         OrdemServico os = buscarEntidadePorId(id);
         os.transicionarStatus(StatusOS.ENTREGUE);
-        return OrdemServicoResponse.from(osRepository.save(os));
+        return osRepository.save(os);
     }
 
     @Override
-    public OrdemServicoResponse adicionarServico(Long osId, ItemServicoRequest request) {
-        log.info("Adicionando serviço OS id={} servicoId={}", osId, request.servicoId());
+    public OrdemServico adicionarServico(Long osId, AdicionarItemServicoCommand command) {
+        log.info("Adicionando serviço OS id={} servicoId={}", osId, command.servicoId());
         OrdemServico os = buscarEntidadePorId(osId);
-        Servico servico = servicoRepository.findById(request.servicoId())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Serviço não encontrado: " + request.servicoId()));
+        Servico servico = servicoRepository.findById(command.servicoId())
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Serviço não encontrado: " + command.servicoId()));
         ItemServicoOS item = ItemServicoOS.builder()
                 .ordemServico(os).servico(servico)
-                .quantidade(request.quantidade()).precoUnitario(servico.getPreco()).build();
+                .quantidade(command.quantidade()).precoUnitario(servico.getPreco()).build();
         os.getItensServico().add(item);
         os.recalcularTotal();
-        return OrdemServicoResponse.from(osRepository.save(os));
+        return osRepository.save(os);
     }
 
     @Override
-    public OrdemServicoResponse adicionarPeca(Long osId, ItemPecaRequest request) {
-        log.info("Adicionando peça OS id={} pecaId={}", osId, request.pecaId());
+    public OrdemServico adicionarPeca(Long osId, AdicionarItemPecaCommand command) {
+        log.info("Adicionando peça OS id={} pecaId={}", osId, command.pecaId());
         OrdemServico os = buscarEntidadePorId(osId);
-        Peca peca = pecaRepository.findById(request.pecaId())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Peça não encontrada: " + request.pecaId()));
-        validarEstoque(peca, request.quantidade());
+        Peca peca = pecaRepository.findById(command.pecaId())
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Peça não encontrada: " + command.pecaId()));
+        validarEstoque(peca, command.quantidade());
         ItemPecaOS item = ItemPecaOS.builder()
                 .ordemServico(os).peca(peca)
-                .quantidade(request.quantidade()).precoUnitario(peca.getPrecoUnitario()).build();
+                .quantidade(command.quantidade()).precoUnitario(peca.getPrecoUnitario()).build();
         os.getItensPeca().add(item);
         os.recalcularTotal();
-        return OrdemServicoResponse.from(osRepository.save(os));
+        return osRepository.save(os);
     }
 
     @Override
-    public EstatisticasResponse calcularEstatisticas() {
+    public Estatisticas calcularEstatisticas() {
         log.info("Calculando estatísticas de OSs");
         List<OrdemServico> finalizadas = osRepository.findFinalizadasComTempo();
         long tempoMedio = 0;
@@ -247,8 +246,9 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
                     .average().orElse(0);
         }
         List<OrdemServico> todas = osRepository.findAll();
-        return new EstatisticasResponse(
-                tempoMedio, finalizadas.size(),
+        return new Estatisticas(
+                tempoMedio,
+                finalizadas.size(),
                 contarPorStatus(todas, StatusOS.RECEBIDA),
                 contarPorStatus(todas, StatusOS.EM_DIAGNOSTICO),
                 contarPorStatus(todas, StatusOS.AGUARDANDO_APROVACAO),
@@ -270,7 +270,7 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
     }
 
     private String gerarNumero() {
-        return String.format("OS-%d-%s", java.time.Year.now().getValue(),
+        return String.format("OS-%d-%s", Year.now().getValue(),
                 UUID.randomUUID().toString().substring(0, 8).toUpperCase());
     }
 

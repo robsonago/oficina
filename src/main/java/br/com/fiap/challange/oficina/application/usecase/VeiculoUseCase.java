@@ -5,11 +5,10 @@ import br.com.fiap.challange.oficina.domain.exception.RegraDeNegocioException;
 import br.com.fiap.challange.oficina.domain.model.Cliente;
 import br.com.fiap.challange.oficina.domain.model.Veiculo;
 import br.com.fiap.challange.oficina.domain.port.in.VeiculoInputPort;
+import br.com.fiap.challange.oficina.domain.port.in.command.VeiculoCommand;
 import br.com.fiap.challange.oficina.domain.port.out.ClienteRepositoryPort;
 import br.com.fiap.challange.oficina.domain.port.out.VeiculoRepositoryPort;
 import br.com.fiap.challange.oficina.domain.validator.PlacaValidator;
-import br.com.fiap.challange.oficina.dto.request.VeiculoRequest;
-import br.com.fiap.challange.oficina.dto.response.VeiculoResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,67 +26,62 @@ public class VeiculoUseCase implements VeiculoInputPort {
     private final ClienteRepositoryPort clienteRepository;
 
     @Override
-    public VeiculoResponse criar(VeiculoRequest request) {
-        String placaNormalizada = PlacaValidator.normalizar(request.placa());
+    public Veiculo criar(VeiculoCommand command) {
+        String placaNormalizada = PlacaValidator.normalizar(command.placa());
         if (!PlacaValidator.isValida(placaNormalizada)) {
-            throw new RegraDeNegocioException("Placa inválida: " + request.placa());
+            throw new RegraDeNegocioException("Placa inválida: " + command.placa());
         }
         if (veiculoRepository.existsByPlaca(placaNormalizada)) {
             throw new RegraDeNegocioException("Já existe um veículo com a placa: " + placaNormalizada);
         }
-        Cliente cliente = clienteRepository.findById(request.clienteId())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado: " + request.clienteId()));
+        Cliente cliente = clienteRepository.findById(command.clienteId())
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado: " + command.clienteId()));
 
         Veiculo veiculo = Veiculo.builder()
                 .placa(placaNormalizada)
-                .marca(request.marca())
-                .modelo(request.modelo())
-                .ano(request.ano())
+                .marca(command.marca())
+                .modelo(command.modelo())
+                .ano(command.ano())
                 .cliente(cliente)
                 .build();
 
-        return VeiculoResponse.from(veiculoRepository.save(veiculo));
+        return veiculoRepository.save(veiculo);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<VeiculoResponse> listar() {
-        return veiculoRepository.findAll().stream()
-                .map(VeiculoResponse::from)
-                .toList();
+    public List<Veiculo> listar() {
+        return veiculoRepository.findAll();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public VeiculoResponse buscarPorId(Long id) {
-        return VeiculoResponse.from(buscarEntidadePorId(id));
+    public Veiculo buscarPorId(Long id) {
+        return buscarEntidadePorId(id);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public VeiculoResponse buscarPorPlaca(String placa) {
+    public Veiculo buscarPorPlaca(String placa) {
         String placaNormalizada = PlacaValidator.normalizar(placa);
         return veiculoRepository.findByPlaca(placaNormalizada)
-                .map(VeiculoResponse::from)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Veículo não encontrado com placa: " + placa));
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<VeiculoResponse> listarPorCliente(Long clienteId) {
-        return veiculoRepository.findByClienteId(clienteId).stream()
-                .map(VeiculoResponse::from)
-                .toList();
+    public List<Veiculo> listarPorCliente(Long clienteId) {
+        return veiculoRepository.findByClienteId(clienteId);
     }
 
     @Override
-    public VeiculoResponse atualizar(Long id, VeiculoRequest request) {
+    public Veiculo atualizar(Long id, VeiculoCommand command) {
         Veiculo veiculo = buscarEntidadePorId(id);
-        String placaNormalizada = PlacaValidator.normalizar(request.placa());
+        String placaNormalizada = PlacaValidator.normalizar(command.placa());
 
         if (!veiculo.getPlaca().equals(placaNormalizada)) {
             if (!PlacaValidator.isValida(placaNormalizada)) {
-                throw new RegraDeNegocioException("Placa inválida: " + request.placa());
+                throw new RegraDeNegocioException("Placa inválida: " + command.placa());
             }
             if (veiculoRepository.existsByPlaca(placaNormalizada)) {
                 throw new RegraDeNegocioException("Já existe um veículo com a placa: " + placaNormalizada);
@@ -95,17 +89,17 @@ public class VeiculoUseCase implements VeiculoInputPort {
             veiculo.setPlaca(placaNormalizada);
         }
 
-        if (!veiculo.getCliente().getId().equals(request.clienteId())) {
-            Cliente novoCliente = clienteRepository.findById(request.clienteId())
-                    .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado: " + request.clienteId()));
+        if (!veiculo.getCliente().getId().equals(command.clienteId())) {
+            Cliente novoCliente = clienteRepository.findById(command.clienteId())
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado: " + command.clienteId()));
             veiculo.setCliente(novoCliente);
         }
 
-        veiculo.setMarca(request.marca());
-        veiculo.setModelo(request.modelo());
-        veiculo.setAno(request.ano());
+        veiculo.setMarca(command.marca());
+        veiculo.setModelo(command.modelo());
+        veiculo.setAno(command.ano());
 
-        return VeiculoResponse.from(veiculoRepository.save(veiculo));
+        return veiculoRepository.save(veiculo);
     }
 
     @Override

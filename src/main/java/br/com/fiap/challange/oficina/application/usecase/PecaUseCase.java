@@ -3,10 +3,9 @@ package br.com.fiap.challange.oficina.application.usecase;
 import br.com.fiap.challange.oficina.domain.exception.RecursoNaoEncontradoException;
 import br.com.fiap.challange.oficina.domain.model.Peca;
 import br.com.fiap.challange.oficina.domain.port.in.PecaInputPort;
+import br.com.fiap.challange.oficina.domain.port.in.command.AtualizarEstoqueCommand;
+import br.com.fiap.challange.oficina.domain.port.in.command.PecaCommand;
 import br.com.fiap.challange.oficina.domain.port.out.PecaRepositoryPort;
-import br.com.fiap.challange.oficina.dto.request.AtualizarEstoqueRequest;
-import br.com.fiap.challange.oficina.dto.request.PecaRequest;
-import br.com.fiap.challange.oficina.dto.response.PecaResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,54 +22,54 @@ public class PecaUseCase implements PecaInputPort {
     private final PecaRepositoryPort pecaRepository;
 
     @Override
-    public PecaResponse criar(PecaRequest request) {
-        log.info("Criando peça nome={}", request.nome());
+    public Peca criar(PecaCommand command) {
+        log.info("Criando peça nome={}", command.nome());
         Peca peca = Peca.builder()
-                .nome(request.nome())
-                .descricao(request.descricao())
-                .precoUnitario(request.precoUnitario())
-                .quantidadeEstoque(request.quantidadeEstoque() != null ? request.quantidadeEstoque() : 0)
-                .codigoReferencia(request.codigoReferencia())
+                .nome(command.nome())
+                .descricao(command.descricao())
+                .precoUnitario(command.precoUnitario())
+                .quantidadeEstoque(command.quantidadeEstoque() != null ? command.quantidadeEstoque() : 0)
+                .codigoReferencia(command.codigoReferencia())
                 .build();
-        PecaResponse response = PecaResponse.from(pecaRepository.save(peca));
-        log.info("Peça criada id={}", response.id());
-        return response;
+        Peca salva = pecaRepository.save(peca);
+        log.info("Peça criada id={}", salva.getId());
+        return salva;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<PecaResponse> listar() {
+    public List<Peca> listar() {
         log.info("Listando peças");
-        return pecaRepository.findByAtivoTrue().stream().map(PecaResponse::from).toList();
+        return pecaRepository.findByAtivoTrue();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public PecaResponse buscarPorId(Long id) {
+    public Peca buscarPorId(Long id) {
         log.info("Buscando peça id={}", id);
-        return PecaResponse.from(buscarEntidadePorId(id));
+        return buscarEntidadePorId(id);
     }
 
     @Override
-    public PecaResponse atualizar(Long id, PecaRequest request) {
+    public Peca atualizar(Long id, PecaCommand command) {
         log.info("Atualizando peça id={}", id);
         Peca peca = buscarEntidadePorId(id);
-        peca.setNome(request.nome());
-        peca.setDescricao(request.descricao());
-        peca.setPrecoUnitario(request.precoUnitario());
-        peca.setCodigoReferencia(request.codigoReferencia());
-        if (request.quantidadeEstoque() != null) {
-            peca.setQuantidadeEstoque(request.quantidadeEstoque());
+        peca.setNome(command.nome());
+        peca.setDescricao(command.descricao());
+        peca.setPrecoUnitario(command.precoUnitario());
+        peca.setCodigoReferencia(command.codigoReferencia());
+        if (command.quantidadeEstoque() != null) {
+            peca.setQuantidadeEstoque(command.quantidadeEstoque());
         }
-        return PecaResponse.from(pecaRepository.save(peca));
+        return pecaRepository.save(peca);
     }
 
     @Override
-    public PecaResponse atualizarEstoque(Long id, AtualizarEstoqueRequest request) {
-        log.info("Atualizando estoque peça id={} quantidade={}", id, request.quantidade());
+    public Peca atualizarEstoque(Long id, AtualizarEstoqueCommand command) {
+        log.info("Atualizando estoque peça id={} quantidade={}", id, command.quantidade());
         Peca peca = buscarEntidadePorId(id);
-        peca.setQuantidadeEstoque(request.quantidade());
-        return PecaResponse.from(pecaRepository.save(peca));
+        peca.setQuantidadeEstoque(command.quantidade());
+        return pecaRepository.save(peca);
     }
 
     @Override
@@ -81,7 +80,7 @@ public class PecaUseCase implements PecaInputPort {
         pecaRepository.save(peca);
     }
 
-    public Peca buscarEntidadePorId(Long id) {
+    private Peca buscarEntidadePorId(Long id) {
         return pecaRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Peça não encontrada: " + id));
     }
