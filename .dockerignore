@@ -4,6 +4,6 @@ target/
 *.md
 atividades/
 docs/
-postman/
+collection/
 *.iml
 .mvn/wrapper/maven-wrapper.jar
