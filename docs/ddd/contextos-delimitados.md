@@ -75,6 +75,7 @@
 | `ItemPecaOS`    | Entidade (parte do agregado) | Peça incluída na OS com preço snapshot         |
 | `StatusOS`      | Enum                         | 6 estados com regras de transição encapsuladas |
 | `numero`        | Value Object                 | Identificador legível da OS (ex: OS-2025-A1B2) |
+| `EmailPort`     | **Output Port (novo)**       | Interface de domínio para envio de notificações ao cliente; implementada por `JavaMailSenderEmailAdapter` (produção) e `NoOpEmailAdapter` (testes) |
 
 **Invariantes:**
 
@@ -130,7 +131,9 @@
 | Elemento                 | Tipo                                 | Descrição                                       |
 |--------------------------|--------------------------------------|-------------------------------------------------|
 | `Usuario`                | Entidade                             | username, senha (BCrypt), role                  |
-| `JwtService`             | Serviço de Domínio de Infraestrutura | Gera e valida tokens JWT HS256                  |
+| `JwtService`             | **Adapter de Infraestrutura**        | Implementa `TokenPort` — gera e valida tokens JWT HS256 |
+| `TokenPort`              | **Output Port (novo)**               | Interface de domínio que abstrai a geração de token |
+| `AuthToken`              | **Value Object (novo)**              | Record imutável com `token`, `tipo`, `username`, `role`, `expiresIn` |
 | `UserDetailsServiceImpl` | Adaptador                            | Integra Spring Security com `UsuarioRepository` |
 
 **Roles:**
@@ -156,28 +159,36 @@ CLIENTES E VEÍCULOS ───────────────────�
                          ▲
                          │ (débito automático via Política)
                          └── ORDENS DE SERVIÇO (OrcamentoAprovado)
+
+ORDENS DE SERVIÇO ──► [SMTP / Mailpit] (via EmailPort → JavaMailSenderEmailAdapter)
 ```
 
 **Tipo de integração:** Todos os contextos coexistem no mesmo monolito.  
-Comunicação via chamadas diretas de serviço Java (não há mensageria neste MVP).  
+Comunicação via chamadas diretas de serviço Java. Na Fase 2 foi adicionada integração
+com servidor SMTP via Spring Mail (JavaMailSender), abstraída pelo EmailPort — em
+ambiente local usa Mailpit; em produção, configurável via variáveis de ambiente.  
 Em uma evolução futura para microsserviços, os bounded contexts seriam os candidatos naturais à separação.
 
 ---
 
-## Mapeamento para Arquitetura MVC
+## Mapeamento para Arquitetura Hexagonal
 
-Cada bounded context é implementado seguindo o padrão MVC em camadas: Controller → Service → Repository.
+Cada bounded context é implementado seguindo a Arquitetura Hexagonal (Ports & Adapters): o Adapter REST traduz a
+requisição em um Command e chama o Input Port, implementado pelo Use Case, que orquestra o domínio e se comunica
+com o mundo externo através dos Output Ports.
 
-| Bounded Context      | Controller                               | Service                            | Repository                               |
-|----------------------|------------------------------------------|------------------------------------|------------------------------------------|
-| Clientes e Veículos  | `ClienteController`, `VeiculoController` | `ClienteService`, `VeiculoService` | `ClienteRepository`, `VeiculoRepository` |
-| Ordens de Serviço    | `OrdemServicoController`                 | `OrdemServicoService`              | `OrdemServicoRepository`                 |
-| Catálogo de Serviços | `ServicoController`                      | `ServicoService`                   | `ServicoRepository`                      |
-| Estoque de Peças     | `PecaController`                         | `PecaService`                      | `PecaRepository`                         |
-| Identidade e Acesso  | `AuthController`                         | `AuthService`                      | `UsuarioRepository`, `JwtService`        |
+| Bounded Context      | Adapter REST (in)        | Input Port              | Use Case              | Output Ports (out)                                                                |
+|-----------------------|---------------------------|--------------------------|--------------------------|-----------------------------------------------------------------------------------|
+| Clientes e Veículos  | `ClienteController`      | `ClienteInputPort`      | `ClienteUseCase`      | `ClienteRepositoryPort`                                                           |
+|                      | `VeiculoController`      | `VeiculoInputPort`      | `VeiculoUseCase`      | `VeiculoRepositoryPort`, `ClienteRepositoryPort`                                  |
+| Ordens de Serviço    | `OrdemServicoController` | `OrdemServicoInputPort` | `OrdemServicoUseCase` | `OrdemServicoRepositoryPort`, `ClienteRepositoryPort`, `VeiculoRepositoryPort`, `ServicoRepositoryPort`, `PecaRepositoryPort`, `EmailPort` |
+| Catálogo de Serviços | `ServicoController`      | `ServicoInputPort`      | `ServicoUseCase`      | `ServicoRepositoryPort`                                                           |
+| Estoque de Peças     | `PecaController`         | `PecaInputPort`         | `PecaUseCase`         | `PecaRepositoryPort`                                                              |
+| Identidade e Acesso  | `AuthController`         | `AuthInputPort`         | `AuthUseCase`         | `UsuarioRepositoryPort`, `TokenPort`                                              |
 
-**Princípio aplicado:** Cada camada tem responsabilidade única. Os Controllers recebem requisições HTTP e delegam ao
-Service. Os Services contêm toda a lógica de negócio e chamam os Repositories Spring Data JPA diretamente. O Model
-encapsula as regras de domínio (transições de status, cálculo de orçamento).
+**Princípio aplicado:** Cada camada tem responsabilidade única. Os Adapters REST recebem requisições HTTP e as
+traduzem em Commands, delegando ao Input Port. Os Use Cases contêm toda a lógica de negócio e se comunicam com
+persistência e serviços externos apenas através dos Output Ports. O Domain encapsula as regras de negócio
+(transições de status, cálculo de orçamento) e nunca depende da infraestrutura.
 
-Para mais detalhes sobre a arquitetura MVC, consulte [docs/arquitetura/mvc.md](../arquitetura/mvc.md).
+Para mais detalhes sobre a arquitetura, consulte [docs/arquitetura/hexagonal.md](../arquitetura/hexagonal.md).
