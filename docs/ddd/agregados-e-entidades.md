@@ -91,6 +91,22 @@ RECEBIDA.podeTransicionarPara(EM_DIAGNOSTICO)       → true
 - Capturado no momento da inclusão na OS
 - Não muda se o preço do serviço/peça for alterado posteriormente
 
+### AuthToken (record)
+
+```
+Campos: token (String), tipo (String), username (String), role (String), expiresIn (Long)
+Imutável após criação. Retornado pelo domínio ao fazer login — nunca expõe UserDetails.
+```
+
+### Estatisticas (record)
+
+```
+Campos: tempoMedioExecucaoMinutos (Long), totalOSFinalizadas (long),
+        totalOSPorStatus_recebida, _emDiagnostico, _aguardandoAprovacao,
+        _emExecucao, _finalizada, _entregue (todos long)
+Calculado sob demanda por OrdemServicoUseCase.calcularEstatisticas().
+```
+
 ---
 
 ## Serviços de Domínio
@@ -128,5 +144,6 @@ Métodos:
 | Cálculo do valor total          | `OrdemServico.recalcularTotal()`                             |
 | Validação de CPF/CNPJ           | `CpfCnpjValidator`                                           |
 | Validação de placa              | `PlacaValidator`                                             |
-| Estoque não pode ficar negativo | `OrdemServicoService.validarEstoque()`                       |
+| Estoque não pode ficar negativo | `OrdemServicoUseCase.validarEstoque()` (private)             |
 | Preço snapshot                  | `ItemServicoOS` e `ItemPecaOS` inicializados com preço atual |
+| Notificar cliente ao transicionar para `AGUARDANDO_APROVACAO` | `OrdemServicoUseCase` → `EmailPort.enviarNotificacaoOrcamento()` |
