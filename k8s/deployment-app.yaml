@@ -17,9 +17,9 @@ spec:
         - name: ghcr-secret
       containers:
         - name: oficina-app
-          # Para cloud: substitua pela tag :latest e garanta que a imagem foi publicada no GHCR
-          # docker push ghcr.io/corpp00429/oficina-app:latest
-          image: ghcr.io/corpp00429/oficina-app:latest
+          # Para cloud: garanta que a imagem foi publicada no GHCR
+          # docker push ghcr.io/robsonago/oficina-app:latest
+          image: ghcr.io/robsonago/oficina-app:latest
           # IfNotPresent: usa imagem local carregada via 'kind load' ou baixa do GHCR se não existir
           imagePullPolicy: IfNotPresent
           ports:

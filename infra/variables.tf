@@ -33,13 +33,13 @@ variable "jwt_secret" {
 variable "app_image" {
   description = "Imagem Docker da aplicação"
   type        = string
-  default     = "ghcr.io/corpp00429/oficina-app:latest"
+  default     = "ghcr.io/robsonago/oficina-app:latest"
 }
 
 variable "ghcr_username" {
   description = "Usuário do GitHub Container Registry"
   type        = string
-  default     = "corpp00429"
+  default     = "robsonago"
 }
 
 variable "ghcr_token" {

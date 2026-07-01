@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE="ghcr.io/corpp00429/oficina-app:latest"
+IMAGE="ghcr.io/robsonago/oficina-app:latest"
 CLUSTER_NAME="oficina"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -63,7 +63,7 @@ echo "=== Criando secret de autenticação no GHCR ==="
 # suficiente para uso local onde a imagem já foi carregada via 'kind load'.
 kubectl --context "${KUBE_CTX}" -n oficina create secret docker-registry ghcr-secret \
   --docker-server=ghcr.io \
-  --docker-username="${GHCR_USERNAME:-corpp00429}" \
+  --docker-username="${GHCR_USERNAME:-robsonago}" \
   --docker-password="${GHCR_TOKEN:-placeholder-local}" \
   --dry-run=client -o yaml | kubectl --context "${KUBE_CTX}" apply -f -
 

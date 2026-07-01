@@ -4,14 +4,14 @@ variable "namespace" {
 }
 
 variable "app_image" {
-  description = "Imagem Docker da aplicação (ex: ghcr.io/corpp00429/oficina-app:latest)"
+  description = "Imagem Docker da aplicação (ex: ghcr.io/robsonago/oficina-app:latest)"
   type        = string
 }
 
 variable "ghcr_username" {
   description = "Usuário do GitHub Container Registry"
   type        = string
-  default     = "corpp00429"
+  default     = "robsonago"
 }
 
 variable "ghcr_token" {
