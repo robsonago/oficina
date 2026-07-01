@@ -144,6 +144,9 @@ jobs:
           kubectl apply -f k8s/deployment-mailpit.yaml
           kubectl apply -f k8s/service-mailpit.yaml
 
+      - name: Aguardar Mailpit ficar pronto
+        run: kubectl -n oficina rollout status deployment/mailpit --timeout=120s
+
       - name: Deploy da aplicação
         run: |
           kubectl apply -f k8s/deployment-app.yaml
