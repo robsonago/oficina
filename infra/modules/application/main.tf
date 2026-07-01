@@ -4,6 +4,33 @@ terraform {
       source  = "hashicorp/kubernetes"
       version = "~> 2.30"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.0"
+    }
+  }
+}
+
+# ──────────────────────────────────────────
+# Build local da imagem + carregamento no kind
+# Elimina a dependência do GHCR quando rodando
+# 100% local (var.build_local_image = true,
+# valor padrão). Espelha o que o
+# scripts/kind-setup.sh já faz manualmente.
+# ──────────────────────────────────────────
+resource "null_resource" "build_and_load_image" {
+  count = var.build_local_image ? 1 : 0
+
+  triggers = {
+    always_run = timestamp()
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      docker build -t "${var.app_image}" "${path.root}/.."
+      kind load docker-image "${var.app_image}" --name "${var.cluster_name}"
+    EOT
   }
 }
 
@@ -196,7 +223,7 @@ resource "kubernetes_deployment" "app" {
     }
   }
 
-  depends_on = [kubernetes_secret.ghcr]
+  depends_on = [kubernetes_secret.ghcr, null_resource.build_and_load_image]
 }
 
 resource "kubernetes_service" "app" {

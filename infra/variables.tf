@@ -48,3 +48,9 @@ variable "ghcr_token" {
   sensitive   = true
   default     = ""
 }
+
+variable "build_local_image" {
+  description = "Se true (padrão), builda a imagem a partir do Dockerfile local e carrega no cluster via 'kind load docker-image', sem depender do GHCR. Ponha false apenas se quiser forçar o pull de uma imagem já publicada (requer 'ghcr_token' válido para pacotes privados)."
+  type        = bool
+  default     = true
+}

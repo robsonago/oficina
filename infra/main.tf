@@ -57,11 +57,13 @@ module "database" {
 # Service da app e HPA
 # ──────────────────────────────────────────
 module "application" {
-  source        = "./modules/application"
-  namespace     = var.namespace
-  app_image     = var.app_image
-  ghcr_username = var.ghcr_username
-  ghcr_token    = var.ghcr_token
+  source            = "./modules/application"
+  namespace         = var.namespace
+  app_image         = var.app_image
+  ghcr_username     = var.ghcr_username
+  ghcr_token        = var.ghcr_token
+  cluster_name      = var.cluster_name
+  build_local_image = var.build_local_image
 
   depends_on = [module.database]
 }
