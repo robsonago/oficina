@@ -66,7 +66,7 @@ neste relatório.
 
 ### 🟡 MÉDIA — VUL-001: Credenciais Padrão na Inicialização
 
-**Localização:** `src/main/java/br/com/fiap/challange/oficina/config/DataInitializer.java`
+**Localização:** `src/main/java/br/com/fiap/challange/oficina/infrastructure/config/DataInitializer.java`
 
 **Descrição:**  
 Um usuário administrador com senha `admin123` é criado automaticamente na primeira execução, caso não exista. Em
@@ -141,7 +141,7 @@ credential stuffing sem qualquer bloqueio.
 
 ### 🔵 BAIXA — VUL-004: CORS Não Configurado Explicitamente
 
-**Localização:** `src/main/java/br/com/fiap/challange/oficina/config/SecurityConfig.java`
+**Localização:** `src/main/java/br/com/fiap/challange/oficina/infrastructure/config/SecurityConfig.java`
 
 **Descrição:**  
 Não há configuração de CORS (Cross-Origin Resource Sharing). O comportamento padrão do Spring Boot rejeita requisições
@@ -231,11 +231,33 @@ a `LazyInitializationException` encadeada.
 
 **Mitigação recomendada:**
 
+Na Fase 2, com a migração para Arquitetura Hexagonal, identificou-se que habilitar
+`open-in-view: false` exige que o mapeamento entidade → DTO ocorra **dentro** da transação
+(no use case), e não no controller/adapter de entrada:
+
 ```yaml
 spring:
   jpa:
     open-in-view: false
 ```
+
+Se `open-in-view: false` for habilitado, garantir que toda associação lazy (`LAZY FetchType`)
+seja carregada dentro do `@Transactional` do use case antes de retornar a entidade ao controller.
+Alternativa: mapear entidade → DTO dentro da transação.
+
+---
+
+### Nota — Caminhos de Arquivo Atualizados na Fase 2
+
+Com a migração para Arquitetura Hexagonal, as classes de configuração e segurança foram
+movidas para dentro do pacote `infrastructure/`:
+
+| Classe                     | Caminho Fase 1                       | Caminho Fase 2                                      |
+|----------------------------|----------------------------------------|-------------------------------------------------------|
+| `SecurityConfig`          | `config/SecurityConfig.java`          | `infrastructure/config/SecurityConfig.java`          |
+| `JwtService`               | `security/JwtService.java`            | `infrastructure/security/JwtService.java`            |
+| `JwtAuthenticationFilter` | `security/JwtAuthenticationFilter.java` | `infrastructure/security/JwtAuthenticationFilter.java` |
+| `DataInitializer`         | `config/DataInitializer.java`         | `infrastructure/config/DataInitializer.java`         |
 
 ---
 
