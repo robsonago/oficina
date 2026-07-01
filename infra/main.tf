@@ -22,9 +22,9 @@ provider "kind" {}
 # Credenciais diretas do kind_cluster — sem depender de ~/.kube/config
 provider "kubernetes" {
   host                   = module.cluster.endpoint
-  client_certificate     = base64decode(module.cluster.client_certificate)
-  client_key             = base64decode(module.cluster.client_key)
-  cluster_ca_certificate = base64decode(module.cluster.cluster_ca_certificate)
+  client_certificate     = module.cluster.client_certificate
+  client_key             = module.cluster.client_key
+  cluster_ca_certificate = module.cluster.cluster_ca_certificate
 }
 
 # ──────────────────────────────────────────
