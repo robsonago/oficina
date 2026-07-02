@@ -17,14 +17,22 @@ terraform {
 #
 # - build_local_image = true  (padrão, uso local):
 #   builda a imagem a partir do Dockerfile local e
-#   carrega no kind. Elimina a dependência do GHCR.
-#   Espelha o que o scripts/kind-setup.sh já faz
-#   manualmente.
+#   carrega no kind via 'kind load docker-image'.
+#   Elimina a dependência do GHCR. Espelha o que o
+#   scripts/kind-setup.sh já faz manualmente.
 # - build_local_image = false (uso no CI/CD): a
 #   imagem já foi buildada e publicada no GHCR por
-#   um job anterior do pipeline — aqui só é feito o
-#   pull e o carregamento no kind, sem depender de
-#   pull em tempo de execução pelos nós do cluster.
+#   um job anterior do pipeline. Aqui só validamos
+#   que o pull funciona (falha rápido se a imagem
+#   não existir/autenticação estiver errada); o
+#   carregamento nos nós do cluster fica por conta
+#   do próprio kubelet, puxando do GHCR com o
+#   'ghcr-secret' (kubernetes_secret.ghcr) definido
+#   abaixo. Não usamos 'kind load' nesse modo porque
+#   o Docker dos runners do GitHub Actions usa o
+#   containerd image store, que quebra o
+#   'kind load docker-image' com o erro
+#   "failed to detect containerd snapshotter".
 # ──────────────────────────────────────────
 locals {
   build_image_cmd = <<-EOT
@@ -36,7 +44,6 @@ locals {
   pull_image_cmd = <<-EOT
     set -e
     docker pull "${var.app_image}"
-    kind load docker-image "${var.app_image}" --name "${var.cluster_name}"
   EOT
 }
 
