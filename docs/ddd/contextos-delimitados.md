@@ -4,6 +4,8 @@
 
 ## Visão Geral
 
+![Diagrama de Contextos Delimitados](image/contextos-delimitados.png)
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        OFICINA MECÂNICA - SISTEMA                       │

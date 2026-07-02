@@ -19,6 +19,10 @@
 
 ---
 
+![Diagrama de Event Storming](image/event-storming.png)
+
+---
+
 > **Padrão Command (Fase 2):** Cada comando do Event Storming corresponde agora a um record Java
 > imutável em `domain/port/in/command/`. O Controller traduz o DTO HTTP para o Command antes de
 > chamar o caso de uso. Isso garante que o domínio nunca veja DTOs de infraestrutura.

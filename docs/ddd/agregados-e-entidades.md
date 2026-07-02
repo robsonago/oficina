@@ -4,6 +4,8 @@
 
 ## Diagrama de Agregados
 
+![Diagrama de Agregados, Entidades e Objetos de Valor](image/agregados-e-entidades.png)
+
 ```
 ┌──────────────────────────────────────────────────────────┐
 │  AGREGADO: OrdemServico                                  │

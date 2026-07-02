@@ -7,6 +7,10 @@
 
 ---
 
+![Diagrama de Domain Storytelling](image/domain-storytelling.png)
+
+---
+
 ## Notação Utilizada
 
 Em Domain Storytelling, cada "frase pictográfica" tem a forma:
