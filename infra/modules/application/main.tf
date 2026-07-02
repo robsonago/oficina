@@ -12,25 +12,41 @@ terraform {
 }
 
 # ──────────────────────────────────────────
-# Build local da imagem + carregamento no kind
-# Elimina a dependência do GHCR quando rodando
-# 100% local (var.build_local_image = true,
-# valor padrão). Espelha o que o
-# scripts/kind-setup.sh já faz manualmente.
+# Carrega a imagem da aplicação no cluster kind
+# antes do Deployment ser criado.
+#
+# - build_local_image = true  (padrão, uso local):
+#   builda a imagem a partir do Dockerfile local e
+#   carrega no kind. Elimina a dependência do GHCR.
+#   Espelha o que o scripts/kind-setup.sh já faz
+#   manualmente.
+# - build_local_image = false (uso no CI/CD): a
+#   imagem já foi buildada e publicada no GHCR por
+#   um job anterior do pipeline — aqui só é feito o
+#   pull e o carregamento no kind, sem depender de
+#   pull em tempo de execução pelos nós do cluster.
 # ──────────────────────────────────────────
-resource "null_resource" "build_and_load_image" {
-  count = var.build_local_image ? 1 : 0
+locals {
+  build_image_cmd = <<-EOT
+    set -e
+    docker build -t "${var.app_image}" "${path.root}/.."
+    kind load docker-image "${var.app_image}" --name "${var.cluster_name}"
+  EOT
 
+  pull_image_cmd = <<-EOT
+    set -e
+    docker pull "${var.app_image}"
+    kind load docker-image "${var.app_image}" --name "${var.cluster_name}"
+  EOT
+}
+
+resource "null_resource" "build_and_load_image" {
   triggers = {
     always_run = timestamp()
   }
 
   provisioner "local-exec" {
-    command = <<-EOT
-      set -e
-      docker build -t "${var.app_image}" "${path.root}/.."
-      kind load docker-image "${var.app_image}" --name "${var.cluster_name}"
-    EOT
+    command = var.build_local_image ? local.build_image_cmd : local.pull_image_cmd
   }
 }
 
@@ -39,7 +55,7 @@ resource "null_resource" "build_and_load_image" {
 # Necessário para pull da imagem em ambientes
 # sem pré-carregamento via 'kind load'.
 # Com token vazio, o secret existe mas não
-# autentica — funciona se a imagem já estiver
+# autentica funciona se a imagem já estiver
 # carregada localmente (IfNotPresent).
 # ──────────────────────────────────────────
 resource "kubernetes_secret" "ghcr" {
