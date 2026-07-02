@@ -15,6 +15,8 @@ O Domain não conhece Spring, JPA, HTTP ou qualquer framework externo.
 
 ## Diagrama das Camadas
 
+![Diagrama das Camadas Hexagonais](images/hexagonal-camadas.png)
+
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  INFRASTRUCTURE (Adapters)                                          │
@@ -118,6 +120,8 @@ Infrastructure → Application → Domain
 ---
 
 ## Fluxo de uma Requisição, de Ponta a Ponta
+
+![Diagrama do Fluxo de uma Requisição](images/hexagonal-fluxo-requisicao.png)
 
 ```
 HTTP Request

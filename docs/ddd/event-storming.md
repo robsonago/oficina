@@ -19,7 +19,7 @@
 
 ---
 
-![Diagrama de Event Storming](image/event-storming.png)
+![Diagrama de Event Storming](images/event-storming.png)
 
 ---
 

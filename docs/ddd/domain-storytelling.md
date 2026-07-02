@@ -7,7 +7,7 @@
 
 ---
 
-![Diagrama de Domain Storytelling](image/domain-storytelling.png)
+![Diagrama de Domain Storytelling](images/domain-storytelling.png)
 
 ---
 

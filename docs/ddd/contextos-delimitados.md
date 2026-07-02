@@ -4,7 +4,7 @@
 
 ## Visão Geral
 
-![Diagrama de Contextos Delimitados](image/contextos-delimitados.png)
+![Diagrama de Contextos Delimitados](images/contextos-delimitados.png)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐

@@ -4,7 +4,7 @@
 
 ## Diagrama de Agregados
 
-![Diagrama de Agregados, Entidades e Objetos de Valor](image/agregados-e-entidades.png)
+![Diagrama de Agregados, Entidades e Objetos de Valor](images/agregados-e-entidades.png)
 
 ```
 ┌──────────────────────────────────────────────────────────┐
