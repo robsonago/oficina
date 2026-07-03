@@ -400,6 +400,11 @@ um Postgres real.
 - Spring Security filtra todas as rotas administrativas
 - Análise de vulnerabilidades documentada em
   [`docs/vulnerabilidades/relatorio-vulnerabilidades.md`](docs/vulnerabilidades/relatorio-vulnerabilidades.md)
+- **Nota:** `k8s/secret.yaml` e `infra/variables.tf` têm senha do banco e `JWT_SECRET` em texto puro
+  versionados no Git de propósito, são defaults só para demonstração local (`kind`), nunca para
+  produção. Segredo de fato (credenciais de e-mail/produção) já fica fora do Git via `.env.oficina`
+  (`.gitignore`). Detalhes em [`docs/arquitetura/infraestrutura.md`](docs/arquitetura/infraestrutura.md)
+  (seção 3.3).
 
 **Controle de estoque:** o estoque das peças é debitado automaticamente quando o cliente **aprova o
 orçamento** (transição para `EM_EXECUCAO`). Caso o estoque seja insuficiente, a aprovação é bloqueada

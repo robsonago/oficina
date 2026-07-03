@@ -174,6 +174,14 @@ JWT_SECRET                → chave de assinatura dos tokens
 MAIL_USERNAME/PASSWORD    → vazios localmente (Mailpit não exige auth)
 ```
 
+**Nota de segurança:** os valores default de `DB_PASSWORD` (`oficina123`) e `JWT_SECRET` neste arquivo
+e em `infra/variables.tf` estão em texto puro e versionados no Git **de propósito** são apenas para
+demonstração local (avaliação acadêmica / ambiente `kind` no laptop), nunca usados em produção real. O
+projeto já trata segredo real de forma diferente: `.env.oficina` (credenciais de e-mail/produção) fica
+fora do Git via `.gitignore`. Em um cluster de produção de verdade, `DB_PASSWORD`/`JWT_SECRET` viriam de
+um cofre de segredos (Vault, AWS Secrets Manager, Sealed Secrets etc.), nunca de um default em
+`variables.tf` commitado.
+
 ### 3.4 `deployment-postgres.yaml` (+ PVC)
 
 Um `PersistentVolumeClaim` (`postgres-pvc`, 1Gi) reserva espaço em disco que **sobrevive** a reinícios
