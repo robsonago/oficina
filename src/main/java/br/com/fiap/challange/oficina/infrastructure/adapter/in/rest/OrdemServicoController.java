@@ -88,18 +88,6 @@ public class OrdemServicoController {
         return ResponseEntity.ok(OrdemServicoResponse.from(osUseCase.gerarOrcamento(id)));
     }
 
-    @PostMapping("/{id}/aprovar")
-    @Operation(summary = "Aprovar orçamento (AGUARDANDO_APROVACAO → EM_EXECUCAO)")
-    public ResponseEntity<OrdemServicoResponse> aprovar(@PathVariable Long id) {
-        return ResponseEntity.ok(OrdemServicoResponse.from(osUseCase.aprovarOrcamento(id)));
-    }
-
-    @PostMapping("/{id}/rejeitar")
-    @Operation(summary = "Rejeitar orçamento - retorna para diagnóstico (AGUARDANDO_APROVACAO → EM_DIAGNOSTICO)")
-    public ResponseEntity<OrdemServicoResponse> rejeitar(@PathVariable Long id) {
-        return ResponseEntity.ok(OrdemServicoResponse.from(osUseCase.rejeitarOrcamento(id)));
-    }
-
     @PostMapping("/{id}/aprovacao-orcamento")
     @Operation(summary = "Aprovar ou rejeitar orçamento via body (aprovado: true → EM_EXECUCAO, false → EM_DIAGNOSTICO)")
     public ResponseEntity<OrdemServicoResponse> aprovacaoOrcamento(@PathVariable Long id,

@@ -773,32 +773,7 @@
           }
         },
         {
-          "name": "06 Aprovar Orçamento (AGUARDANDO_APROVACAO → EM_EXECUCAO)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status EM_EXECUCAO', () => {",
-                  "    pm.response.to.have.status(200);",
-                  "    pm.expect(pm.response.json().status).to.eql('EM_EXECUCAO');",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "url": {
-              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/aprovar",
-              "host": ["{{base_url}}"],
-              "path": ["api", "ordens-servico", "{{osId}}", "aprovar"]
-            }
-          }
-        },
-        {
-          "name": "06-alt Aprovar ou Rejeitar via Body",
+          "name": "06 Aprovar ou Rejeitar Orçamento via Body",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -811,17 +786,6 @@
               "raw": "{{base_url}}/api/ordens-servico/{{osId}}/aprovacao-orcamento",
               "host": ["{{base_url}}"],
               "path": ["api", "ordens-servico", "{{osId}}", "aprovacao-orcamento"]
-            }
-          }
-        },
-        {
-          "name": "06-alt Rejeitar Orçamento (volta para EM_DIAGNOSTICO)",
-          "request": {
-            "method": "POST",
-            "url": {
-              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/rejeitar",
-              "host": ["{{base_url}}"],
-              "path": ["api", "ordens-servico", "{{osId}}", "rejeitar"]
             }
           }
         },

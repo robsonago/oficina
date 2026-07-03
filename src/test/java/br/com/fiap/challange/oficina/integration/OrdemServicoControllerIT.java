@@ -145,8 +145,10 @@ class OrdemServicoControllerIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("AGUARDANDO_APROVACAO"));
 
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/aprovar")
-                        .header("Authorization", token))
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/aprovacao-orcamento")
+                        .header("Authorization", token)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"aprovado\": true}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("EM_EXECUCAO"));
 
@@ -171,8 +173,10 @@ class OrdemServicoControllerIT {
                         .header("Authorization", token))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/rejeitar")
-                        .header("Authorization", token))
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/aprovacao-orcamento")
+                        .header("Authorization", token)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"aprovado\": false}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("EM_DIAGNOSTICO"));
     }
