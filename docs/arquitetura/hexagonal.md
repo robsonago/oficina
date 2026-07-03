@@ -41,11 +41,11 @@ O Domain não conhece Spring, JPA, HTTP ou qualquer framework externo.
 ```
 src/main/java/br/com/fiap/challange/oficina/
 ├── domain/
-│   ├── model/               # Entidades e Value Objects
+│   ├── model/               # Modelos de domínio (POJOs puros) e Value Objects
 │   │   ├── enums/           # StatusOS, TipoDocumento
 │   │   ├── AuthToken.java   # Record (Value Object)
 │   │   ├── Estatisticas.java # Record (Value Object)
-│   │   └── (demais entidades JPA)
+│   │   └── (demais modelos de domínio)
 │   ├── port/
 │   │   ├── in/              # Input Ports (interfaces dos casos de uso)
 │   │   │   ├── command/     # Comandos (records imutáveis por caso de uso)
@@ -67,7 +67,10 @@ src/main/java/br/com/fiap/challange/oficina/
 │   ├── adapter/
 │   │   ├── in/rest/         # Controllers REST (Adapters de entrada)
 │   │   └── out/
-│   │       ├── persistence/ # Repositórios JPA (Adapters de saída)
+│   │       ├── persistence/ # Adapters de saída (Repositórios JPA + mapeamento domínio↔entidade)
+│   │       │   ├── entity/  # Entidades JPA (*JpaEntity) — só aqui existe @Entity/@Column/@ManyToOne
+│   │       │   ├── mapper/  # Mappers MapStruct (*Mapper) — convertem domínio ↔ entidade JPA
+│   │       │   └── (*JpaRepository + *RepositoryAdapter)
 │   │       └── email/       # Adaptadores de e-mail
 │   ├── config/               # SecurityConfig, OpenApiConfig, DataInitializer
 │   ├── filter/               # CorrelationIdFilter
@@ -83,12 +86,14 @@ src/main/java/br/com/fiap/challange/oficina/
 
 ### Domain (Model + Ports)
 
-- Contém as entidades JPA, os Value Objects (`AuthToken`, `Estatisticas`) e os enums (`StatusOS`, `TipoDocumento`)
+- Contém os modelos de domínio (POJOs puros, sem `@Entity`/`@Column`/`@ManyToOne` ou qualquer anotação
+  JPA/Hibernate), os Value Objects (`AuthToken`, `Estatisticas`) e os enums (`StatusOS`, `TipoDocumento`)
 - Encapsula as regras de negócio no próprio modelo (ex: `OrdemServico.transicionarStatus()`, `StatusOS.podeTransicionarPara()`)
 - Define os **Input Ports** (`ClienteInputPort`, `OrdemServicoInputPort`, ...) — contratos dos casos de uso
 - Define os **Commands** em `port/in/command/` — records imutáveis que representam a intenção de cada operação (ex: `AbrirOrdemServicoCommand`)
 - Define os **Output Ports** (`ClienteRepositoryPort`, `EmailPort`, `TokenPort`, ...) — contratos que a infraestrutura deve implementar
-- Não depende de nenhuma outra camada, nem de frameworks externos
+- Não depende de nenhuma outra camada, nem de frameworks externos — a persistência (JPA/Hibernate) vive
+  exclusivamente em `infrastructure/adapter/out/persistence/entity`, isolada por um mapper MapStruct
 
 ### Application (Use Cases)
 
@@ -100,7 +105,12 @@ src/main/java/br/com/fiap/challange/oficina/
 ### Infrastructure (Adapters)
 
 - **Adapters de entrada** (`adapter/in/rest`): Controllers REST recebem o DTO HTTP, traduzem para um Command e chamam o Input Port correspondente
-- **Adapters de saída** (`adapter/out/persistence`): interfaces `JpaRepository` que estendem diretamente o Output Port (ex: `ClienteJpaRepository extends JpaRepository<Cliente, Long>, ClienteRepositoryPort`)
+- **Adapters de saída** (`adapter/out/persistence`): cada Output Port de repositório é implementado por uma
+  classe `*RepositoryAdapter` (ex: `ClienteRepositoryAdapter implements ClienteRepositoryPort`), que compõe
+  um `JpaRepository<XJpaEntity, Long>` interno (`entity/` para a entidade JPA) e um `*Mapper` MapStruct
+  (`mapper/`) para converter domínio ↔ entidade JPA a cada chamada. A entidade JPA e o repositório Spring
+  Data são package-private — só o Port (interface de domínio) e o Adapter são conhecidos fora do pacote
+  `persistence`
 - **Adapters de saída** (`adapter/out/email`): `JavaMailSenderEmailAdapter` (produção, via Mailpit/SMTP) e `NoOpEmailAdapter` (testes) implementam `EmailPort`
 - `JwtService` implementa `TokenPort` — gera e valida tokens JWT HS256
 - `config/`, `filter/` e demais classes de infraestrutura (Spring Security, OpenAPI, `CorrelationIdFilter`) completam esta camada
@@ -174,12 +184,12 @@ que retorna ao Controller, que converte o resultado em DTO de resposta.
 | `ServicoInputPort` | Input | `ServicoUseCase` |
 | `PecaInputPort` | Input | `PecaUseCase` |
 | `AuthInputPort` | Input | `AuthUseCase` |
-| `ClienteRepositoryPort` | Output | `ClienteJpaRepository` |
-| `VeiculoRepositoryPort` | Output | `VeiculoJpaRepository` |
-| `OrdemServicoRepositoryPort` | Output | `OrdemServicoJpaRepository` |
-| `ServicoRepositoryPort` | Output | `ServicoJpaRepository` |
-| `PecaRepositoryPort` | Output | `PecaJpaRepository` |
-| `UsuarioRepositoryPort` | Output | `UsuarioJpaRepository` |
+| `ClienteRepositoryPort` | Output | `ClienteRepositoryAdapter` (via `ClienteJpaRepository` + `ClienteMapper`) |
+| `VeiculoRepositoryPort` | Output | `VeiculoRepositoryAdapter` (via `VeiculoJpaRepository` + `VeiculoMapper`) |
+| `OrdemServicoRepositoryPort` | Output | `OrdemServicoRepositoryAdapter` (via `OrdemServicoJpaRepository` + `OrdemServicoMapper`) |
+| `ServicoRepositoryPort` | Output | `ServicoRepositoryAdapter` (via `ServicoJpaRepository` + `ServicoMapper`) |
+| `PecaRepositoryPort` | Output | `PecaRepositoryAdapter` (via `PecaJpaRepository` + `PecaMapper`) |
+| `UsuarioRepositoryPort` | Output | `UsuarioRepositoryAdapter` (via `UsuarioJpaRepository` + `UsuarioMapper`) |
 | `EmailPort` | Output | `JavaMailSenderEmailAdapter` (produção) / `NoOpEmailAdapter` (testes) |
 | `TokenPort` | Output | `JwtService` |
 
