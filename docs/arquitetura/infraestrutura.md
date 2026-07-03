@@ -182,7 +182,22 @@ fora do Git via `.gitignore`. Em um cluster de produção de verdade, `DB_PASSWO
 um cofre de segredos (Vault, AWS Secrets Manager, Sealed Secrets etc.), nunca de um default em
 `variables.tf` commitado.
 
-### 3.4 `deployment-postgres.yaml` (+ PVC)
+### 3.4 `secret-ghcr.yaml` — `ghcr-secret`
+
+Secret do tipo `kubernetes.io/dockerconfigjson`, referenciado como `imagePullSecrets` em
+`deployment-app.yaml` ([seção 3.9](#39-deployment-appyaml)). Contém só um placeholder
+(`username`/`password` = `placeholder`/`placeholder-local`) — suficiente quando a imagem já foi
+carregada localmente via `kind load docker-image` (`imagePullPolicy: IfNotPresent` nunca chega a
+resolver o secret de fato nesse caso).
+
+Esse arquivo existe para que a pasta `/k8s` seja autossuficiente: aplicar só os YAMLs (sem rodar
+`scripts/kind-setup.sh`) não deixa mais uma referência pendurada a um `Secret` inexistente. Quando o
+script roda, ele sobrescreve esse mesmo objeto com credenciais reais (se `GHCR_TOKEN` estiver
+definido) via `kubectl create secret docker-registry ... | kubectl apply -f -`
+(`scripts/kind-setup.sh:64-68`) — e o Terraform faz o equivalente de forma declarativa via
+`kubernetes_secret.ghcr` (`infra/modules/application/main.tf`, [seção 4](#4-terraform--infraestrutura-como-código-em-infra)).
+
+### 3.5 `deployment-postgres.yaml` (+ PVC)
 
 Um `PersistentVolumeClaim` (`postgres-pvc`, 1Gi) reserva espaço em disco que **sobrevive** a reinícios
 do pod — sem ele, os dados do banco seriam apagados sempre que o container do Postgres reiniciasse.
@@ -192,13 +207,13 @@ mecanismo de replicação), usa `postgres:16-alpine`, injeta usuário/senha do S
 `readinessProbe` via `pg_isready` — o Kubernetes só considera o pod pronto quando o banco realmente
 aceita conexões.
 
-### 3.5 `service-postgres.yaml`
+### 3.6 `service-postgres.yaml`
 
 Cria o endereço fixo `postgres` dentro do cluster (os pods têm IPs que mudam a cada reinício; o
 Service resolve isso). Tipo **`ClusterIP`** — só acessível de dentro do cluster, porque o banco nunca
 precisa ser exposto para fora.
 
-### 3.6 `deployment-mailpit.yaml`
+### 3.7 `deployment-mailpit.yaml`
 
 Sobe o Mailpit (servidor SMTP fake). A aplicação envia e-mails normalmente via SMTP na porta 1025; o
 Mailpit intercepta e exibe numa UI web, sem nunca enviar de verdade — permite testar o fluxo de
@@ -207,12 +222,12 @@ notificação sem precisar de conta Gmail/SMTP real.
 `readinessProbe`/`livenessProbe` na porta 8025 (UI HTTP) — o pod só é considerado pronto quando o
 servidor web do Mailpit responde, o que na prática garante que o SMTP também já está de pé.
 
-### 3.7 `service-mailpit.yaml`
+### 3.8 `service-mailpit.yaml`
 
 Expõe duas portas: `1025` (SMTP, para a aplicação) e `8025` (UI, tipo **`NodePort`**, acessível em
 `localhost:30825` quando rodando via `kind`).
 
-### 3.8 `deployment-app.yaml`
+### 3.9 `deployment-app.yaml`
 
 O deploy da aplicação Spring Boot.
 
@@ -235,13 +250,13 @@ O deploy da aplicação Spring Boot.
 > `src/main/resources/application.yaml` — o indicador de saúde do Actuator para conectividade SMTP
 > **não** entra no `/actuator/health` agregado. Ver o porquê na [seção 6](#6-decisões-técnicas-e-trade-offs).
 
-### 3.9 `service-app.yaml`
+### 3.10 `service-app.yaml`
 
 Tipo **`NodePort`** — mapeia a porta `8080` do container para a porta `30080` da máquina host,
 tornando a API acessível em `localhost:30080` quando rodando via `kind`. Em cloud, bastaria trocar
 para `type: LoadBalancer`.
 
-### 3.10 `hpa.yaml`
+### 3.11 `hpa.yaml`
 
 `HorizontalPodAutoscaler` — monitora consumo de CPU e escala automaticamente:
 
