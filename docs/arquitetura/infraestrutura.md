@@ -111,7 +111,7 @@ importa diretamente no tempo do pipeline de CI.
 **Decisões no compose:**
 - `depends_on` com `condition: service_healthy` (postgres) e `service_started` (mailpit) — a app só sobe depois que o Postgres passar no `healthcheck` (`pg_isready`); não espera o mesmo do Mailpit porque o e-mail é um efeito colateral best-effort (ver [seção 6](#6-decisões-técnicas-e-trade-offs)).
 - `restart: unless-stopped` em todos os serviços — reinicia sozinho se cair, mas não briga com um `docker-compose down` explícito.
-- `deploy.resources.limits` — limites de CPU/memória por serviço, para não deixar um container consumir a máquina inteira.
+- `deploy.resources.limits` — limites de CPU/memória por serviço, para não deixar um container consumir a máquina inteira. **Nota:** `deploy.resources` é tecnicamente uma chave da spec do Docker Swarm; o plugin moderno `docker compose` (V2, sem hífen) já a respeita mesmo fora de modo Swarm, mas o binário legado `docker-compose` (V1) a ignora silenciosamente sem erro. Este projeto assume `docker compose` V2 — se estiver usando o binário V1, esses limites simplesmente não são aplicados.
 - `networks: oficina-net` — rede dedicada, isolando os serviços deste projeto de outros containers na mesma máquina.
 
 **Variáveis de ambiente:** o `docker-compose.yml` não tem valores fixos — ele lê `${DB_USERNAME}`, `${JWT_SECRET}`, etc. Esses valores vêm de um arquivo de variáveis local chamado **`.env.oficina`** (na raiz do projeto), que **não é versionado no Git** (está no `.gitignore`) — ele simula um cofre de segredos (Secrets Manager).
