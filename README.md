@@ -82,10 +82,10 @@ Domain**, nunca o contrário.
 ```
 src/main/java/br/com/fiap/challange/oficina/
 ├── domain/
-│   ├── model/         # Entidades JPA, Value Objects (AuthToken, Estatisticas), enums
+│   ├── model/         # POJOs puros (sem JPA/Hibernate), Value Objects (AuthToken, Estatisticas), enums
 │   ├── port/
 │   │   ├── in/        # Input Ports (contratos dos casos de uso) + commands/
-│   │   └── out/        # Output Ports (ClienteRepositoryPort, EmailPort, TokenPort, ...)
+│   │   └── out/        # Output Ports (ClienteRepositoryPort, EmailPort, TokenPort, PasswordEncoderPort, AuthenticationPort, ...)
 │   ├── exception/      # Exceções de domínio
 │   └── validator/      # CpfCnpjValidator, PlacaValidator
 ├── application/
@@ -94,11 +94,14 @@ src/main/java/br/com/fiap/challange/oficina/
 │   ├── adapter/
 │   │   ├── in/rest/     # Controllers REST
 │   │   └── out/
-│   │       ├── persistence/  # Repositórios JPA
+│   │       ├── persistence/
+│   │       │   ├── entity/    # Entidades JPA (*JpaEntity), isoladas do domínio
+│   │       │   ├── mapper/    # MapStruct: conversão domínio ↔ entidade JPA
+│   │       │   └── (repositórios Spring Data + *RepositoryAdapter, package-private)
 │   │       └── email/        # JavaMailSenderEmailAdapter / NoOpEmailAdapter
 │   ├── config/          # SecurityConfig, OpenApiConfig, DataInitializer
 │   ├── filter/          # CorrelationIdFilter
-│   └── security/        # JwtService, JwtAuthenticationFilter
+│   └── security/        # JwtService, JwtAuthenticationFilter, PasswordEncoderAdapter, AuthenticationAdapter
 └── dto/                 # DTOs de entrada/saída
     ├── request/
     └── response/
