@@ -281,8 +281,8 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
     }
 
     private String gerarNumero() {
-        return String.format("OS-%d-%s", Year.now().getValue(),
-                UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        String uuidSemHifens = UUID.randomUUID().toString().replace("-", "").toUpperCase();
+        return String.format("OS-%d-%s", Year.now().getValue(), uuidSemHifens);
     }
 
     private OrdemServico buscarEntidadePorId(Long id) {
