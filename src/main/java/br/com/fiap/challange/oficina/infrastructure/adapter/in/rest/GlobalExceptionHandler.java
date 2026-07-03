@@ -77,7 +77,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErroResponse> handleGeneric(Exception ex) {
         log.error("Erro interno não tratado: {}", ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(erro("Erro interno: " + ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR));
+                .body(erro("Erro interno no servidor", HttpStatus.INTERNAL_SERVER_ERROR));
     }
 
     private ErroResponse erro(String mensagem, HttpStatus status) {
