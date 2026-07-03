@@ -413,6 +413,40 @@ class OrdemServicoServiceTest {
     }
 
     @Test
+    void deveOrdenarOSAtivasPorPrioridadeDeQuatroNiveisComDesempatePorDataAbertura() {
+        List<StatusOS> ativos = List.of(StatusOS.EM_EXECUCAO, StatusOS.AGUARDANDO_APROVACAO,
+                StatusOS.EM_DIAGNOSTICO, StatusOS.RECEBIDA);
+
+        LocalDateTime agora = LocalDateTime.now();
+        OrdemServico execucao = osPadrao(StatusOS.EM_EXECUCAO);
+        execucao.setDataAbertura(agora.minusHours(1));
+        OrdemServico aguardandoAprovacao = osPadrao(StatusOS.AGUARDANDO_APROVACAO);
+        aguardandoAprovacao.setDataAbertura(agora.minusHours(2));
+        OrdemServico diagnostico = osPadrao(StatusOS.EM_DIAGNOSTICO);
+        diagnostico.setDataAbertura(agora.minusHours(3));
+        OrdemServico recebidaMaisAntiga = osPadrao(StatusOS.RECEBIDA);
+        recebidaMaisAntiga.setDataAbertura(agora.minusDays(2));
+        OrdemServico recebidaMaisRecente = osPadrao(StatusOS.RECEBIDA);
+        recebidaMaisRecente.setDataAbertura(agora.minusHours(4));
+
+        // Inserida fora de ordem de propósito para provar que a ordenação é feita pelo use case,
+        // não pela ordem de retorno do repositório.
+        when(osRepository.findByStatusIn(ativos)).thenReturn(List.of(
+                recebidaMaisRecente, diagnostico, recebidaMaisAntiga, execucao, aguardandoAprovacao));
+
+        List<OrdemServico> result = osService.listarAtivas();
+
+        assertThat(result).hasSize(5);
+        assertThat(result.get(0).getStatus()).isEqualTo(StatusOS.EM_EXECUCAO);
+        assertThat(result.get(1).getStatus()).isEqualTo(StatusOS.AGUARDANDO_APROVACAO);
+        assertThat(result.get(2).getStatus()).isEqualTo(StatusOS.EM_DIAGNOSTICO);
+        // as duas OS RECEBIDA têm o mesmo id em osPadrao() (equals/hashCode são por id) usa
+        // isSameAs para checar identidade do objeto e provar a ordem real do desempate por data.
+        assertThat(result.get(3)).isSameAs(recebidaMaisAntiga);
+        assertThat(result.get(4)).isSameAs(recebidaMaisRecente);
+    }
+
+    @Test
     void deveEnviarEmailAoGerarOrcamento() {
         OrdemServico os = osPadrao(StatusOS.EM_DIAGNOSTICO);
         os.getCliente().setEmail("cliente@email.com");
