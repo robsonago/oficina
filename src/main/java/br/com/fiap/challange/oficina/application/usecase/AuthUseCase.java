@@ -6,13 +6,12 @@ import br.com.fiap.challange.oficina.domain.model.Usuario;
 import br.com.fiap.challange.oficina.domain.port.in.AuthInputPort;
 import br.com.fiap.challange.oficina.domain.port.in.command.LoginCommand;
 import br.com.fiap.challange.oficina.domain.port.in.command.RegistrarUsuarioCommand;
+import br.com.fiap.challange.oficina.domain.port.out.AuthenticationPort;
+import br.com.fiap.challange.oficina.domain.port.out.PasswordEncoderPort;
 import br.com.fiap.challange.oficina.domain.port.out.TokenPort;
 import br.com.fiap.challange.oficina.domain.port.out.UsuarioRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,16 +22,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthUseCase implements AuthInputPort {
 
     private final UsuarioRepositoryPort usuarioRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final AuthenticationManager authenticationManager;
+    private final PasswordEncoderPort passwordEncoder;
+    private final AuthenticationPort authenticationPort;
     private final TokenPort tokenPort;
 
     @Override
     public AuthToken login(LoginCommand command) {
         log.info("Tentativa de login username={}", command.username());
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(command.username(), command.password())
-        );
+        authenticationPort.autenticar(command.username(), command.password());
         Usuario usuario = usuarioRepository.findByUsername(command.username()).orElseThrow();
         String token = tokenPort.generateToken(usuario.getUsername(), usuario.getRole());
         log.info("Login bem-sucedido username={} role={}", usuario.getUsername(), usuario.getRole());

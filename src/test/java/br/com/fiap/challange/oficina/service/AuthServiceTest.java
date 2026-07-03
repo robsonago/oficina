@@ -5,6 +5,8 @@ import br.com.fiap.challange.oficina.domain.model.AuthToken;
 import br.com.fiap.challange.oficina.domain.model.Usuario;
 import br.com.fiap.challange.oficina.domain.port.in.command.LoginCommand;
 import br.com.fiap.challange.oficina.domain.port.in.command.RegistrarUsuarioCommand;
+import br.com.fiap.challange.oficina.domain.port.out.AuthenticationPort;
+import br.com.fiap.challange.oficina.domain.port.out.PasswordEncoderPort;
 import br.com.fiap.challange.oficina.domain.port.out.TokenPort;
 import br.com.fiap.challange.oficina.domain.port.out.UsuarioRepositoryPort;
 import org.junit.jupiter.api.Test;
@@ -12,9 +14,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -31,9 +30,9 @@ class AuthServiceTest {
     @Mock
     UsuarioRepositoryPort usuarioRepository;
     @Mock
-    PasswordEncoder passwordEncoder;
+    PasswordEncoderPort passwordEncoder;
     @Mock
-    AuthenticationManager authenticationManager;
+    AuthenticationPort authenticationPort;
     @Mock
     TokenPort tokenPort;
 
@@ -45,7 +44,6 @@ class AuthServiceTest {
         LoginCommand command = new LoginCommand("admin", "admin123");
         Usuario usuario = usuarioPadrao();
 
-        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(null);
         when(tokenPort.generateToken("admin", "ADMIN")).thenReturn("jwt-token-test");
         when(tokenPort.getExpiration()).thenReturn(86400000L);
         when(usuarioRepository.findByUsername("admin")).thenReturn(Optional.of(usuario));
