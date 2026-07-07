@@ -22,11 +22,10 @@ Pós-Tech SOAT (FIAP). Este repositório cobre as duas fases do projeto:
 7. [Como executar](#7-como-executar)
 8. [CI/CD](#8-cicd)
 9. [Documentação da API](#9-documentação-da-api)
-10. [Vídeo demonstrativo](#10-vídeo-demonstrativo)
-11. [Autenticação](#11-autenticação)
-12. [Endpoints principais](#12-endpoints-principais)
-13. [Testes](#13-testes)
-14. [Segurança](#14-segurança)
+10. [Autenticação](#10-autenticação)
+11. [Endpoints principais](#11-endpoints-principais)
+12. [Testes](#12-testes)
+13. [Segurança](#13-segurança)
 
 ---
 
@@ -58,7 +57,7 @@ decisão técnica:
 | Documento | Conteúdo |
 |---|---|
 | [`docs/arquitetura/hexagonal.md`](docs/arquitetura/hexagonal.md) | Arquitetura Hexagonal: camadas, fluxo de uma requisição, tabela de ports/adapters por bounded context |
-| [`docs/arquitetura/infraestrutura.md`](docs/arquitetura/infraestrutura.md) | Docker, Kubernetes, Terraform e CI/CD — decisões técnicas, troubleshooting e como executar cada parte |
+| [`docs/arquitetura/infraestrutura.md`](docs/arquitetura/infraestrutura.md) | Docker, Kubernetes, Terraform e CI/CD — decisões técnicas e como executar cada parte |
 | [`docs/ddd/contextos-delimitados.md`](docs/ddd/contextos-delimitados.md) | Bounded contexts do domínio |
 | [`docs/ddd/agregados-e-entidades.md`](docs/ddd/agregados-e-entidades.md) | Agregados, entidades e objetos de valor |
 | [`docs/ddd/event-storming.md`](docs/ddd/event-storming.md) | Eventos de domínio, comandos, atores e políticas |
@@ -258,7 +257,7 @@ Terraform imprime as URLs de acesso. Para destruir: `terraform destroy`.
 > Não rode a Opção B e a Opção C ao mesmo tempo — ambas usam um cluster kind chamado `oficina`. Antes
 > de trocar entre elas, rode `kind delete cluster --name oficina`.
 
-Passo a passo completo (variáveis, troubleshooting, o que cada módulo Terraform provisiona) em
+Passo a passo completo (variáveis, o que cada módulo Terraform provisiona) em
 [`docs/arquitetura/infraestrutura.md`](docs/arquitetura/infraestrutura.md).
 
 ---
@@ -278,16 +277,7 @@ para o detalhamento dos três jobs.
 
 ---
 
-## 10. Vídeo demonstrativo
-
-*(a publicar — vídeo de até 15 min demonstrando deploy da aplicação, execução do CI/CD, consumo das
-APIs e escalabilidade automática do HPA)*
-
-Link: `<a publicar>`
-
----
-
-## 11. Autenticação
+## 10. Autenticação
 
 Um usuário administrador é criado automaticamente na primeira execução:
 
@@ -316,7 +306,7 @@ autenticação.
 
 ---
 
-## 12. Endpoints principais
+## 11. Endpoints principais
 
 ### Autenticação
 
@@ -378,7 +368,7 @@ autenticação.
 
 ---
 
-## 13. Testes
+## 12. Testes
 
 ```bash
 # Executar todos os testes (unitários + integração)
@@ -393,7 +383,7 @@ um Postgres real.
 
 ---
 
-## 14. Segurança
+## 13. Segurança
 
 - Autenticação via **JWT (Bearer Token)** — sem estado (stateless)
 - **BCrypt** para hash de senhas

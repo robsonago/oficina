@@ -68,8 +68,8 @@ management:
 info:
   app:
     name: Oficina Mecânica API
-    version: 1.0.0
-    description: Sistema Integrado de Atendimento e Execução de Serviços - MVP
+    version: 2.0.0
+    description: Sistema Integrado de Atendimento e Execução de Serviços - Fase 2
 
 logging:
   pattern:

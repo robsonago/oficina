@@ -17,8 +17,7 @@
 7. [Instalação das ferramentas por sistema operacional](#7-instalação-das-ferramentas-por-sistema-operacional)
 8. [Como executar — passo a passo](#8-como-executar--passo-a-passo)
 9. [Testando o fluxo de e-mail](#9-testando-o-fluxo-de-e-mail)
-10. [Troubleshooting — incidentes reais já enfrentados](#10-troubleshooting--incidentes-reais-já-enfrentados)
-11. [Comandos de referência rápida](#11-comandos-de-referência-rápida)
+10. [Comandos de referência rápida](#10-comandos-de-referência-rápida)
 
 ---
 
@@ -234,7 +233,7 @@ O deploy da aplicação Spring Boot.
 | Campo | Valor | Por quê |
 |---|---|---|
 | `replicas` | `2` | Alta disponibilidade — se um pod cair, o outro continua atendendo |
-| `image` | `ghcr.io/robsonago/oficina-app:latest` | Imagem publicada no GHCR pelo pipeline (ver [seção 10](#10-troubleshooting--incidentes-reais-já-enfrentados) sobre o incidente de owner do GHCR incorreto) |
+| `image` | `ghcr.io/robsonago/oficina-app:latest` | Imagem publicada no GHCR pelo pipeline |
 | `imagePullPolicy` | `IfNotPresent` | Usa a imagem já carregada localmente via `kind load` (script `kind-setup.sh`); só tenta baixar do GHCR se não achar local |
 | `envFrom` | ConfigMap + Secret | Injeta todas as variáveis automaticamente, sem listar uma a uma |
 
@@ -347,7 +346,7 @@ docker pull "${var.app_image}"
 
 Sem `kind load docker-image` nesse modo: o Docker dos runners do GitHub Actions usa o *containerd
 image store*, que quebra o `kind load docker-image` com o erro `failed to detect containerd
-snapshotter` (ver [seção 10.H](#10-troubleshooting--incidentes-reais-já-enfrentados)). O carregamento
+snapshotter`. O carregamento
 da imagem nos nós fica por conta do próprio kubelet, que puxa do GHCR usando o `ghcr-secret`
 (`kubernetes_secret.ghcr`, também neste módulo) já configurado como `imagePullSecrets` no Deployment
 da aplicação. Requer um `ghcr_token` válido (Personal Access Token ou o `GITHUB_TOKEN` automático do
@@ -451,8 +450,7 @@ de execuções fica visível na aba **Actions** do GitHub.
 
 ## 6. Decisões técnicas e trade-offs
 
-Resumo consolidado do "porquê" das decisões de configuração mais relevantes (algumas motivadas por
-incidentes reais já enfrentados neste projeto — detalhes na [seção 10](#10-troubleshooting--incidentes-reais-já-enfrentados)):
+Resumo consolidado do "porquê" das decisões de configuração mais relevantes:
 
 | Decisão | Por quê                                                                                                                                                                                                                                                                                                                                                    |
 |---|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -462,13 +460,13 @@ incidentes reais já enfrentados neste projeto — detalhes na [seção 10](#10-
 | `postgres` como `ClusterIP`, `oficina-app`/`mailpit` como `NodePort` | O banco nunca precisa ser acessado de fora do cluster; app e Mailpit precisam, para demonstração/testes locais                                                                                                                                                                                                                                             |
 | `imagePullPolicy: IfNotPresent` | Local (`build_local_image = true`): evita pull de rede porque a imagem já foi carregada no node via `kind load`. No CI (`build_local_image = false`): a imagem nunca está presente no node recém-criado, então força o kubelet a puxar do GHCR usando o `ghcr-secret`                                                                                      |
 | `startupProbe` com `failureThreshold: 60` × `periodSeconds: 10` (600s) | Dá tempo suficiente para o Spring Boot + migrações do Flyway iniciarem em ambientes com CPU limitada (runners de CI), sem que a `livenessProbe` mate o pod no meio do boot — a `livenessProbe`/`readinessProbe` só passam a valer depois que a `startupProbe` tiver sucesso                                                                                |
-| `management.health.mail.enabled: false` | O envio de e-mail é um efeito colateral, existe até um adapter `NoOpEmailAdapter` como fallback quando não há SMTP configurado. Gatear o *readiness* da aplicação inteira na conectividade SMTP do Mailpit já causou uma falha real de rollout (ver seção 10); com o indicador desabilitado, o rollout da app não depende mais de o Mailpit já estar de pé |
+| `management.health.mail.enabled: false` | O envio de e-mail é um efeito colateral, existe até um adapter `NoOpEmailAdapter` como fallback quando não há SMTP configurado. Gatear o *readiness* da aplicação inteira na conectividade SMTP do Mailpit já causou uma falha real de rollout; com o indicador desabilitado, o rollout da app não depende mais de o Mailpit já estar de pé |
 | HPA com `averageUtilization: 70`, min 2 / max 5 | Atende ao requisito de suportar picos de demanda sem superdimensionar o ambiente de desenvolvimento                                                                                                                                                                                                                                                        |
 | Provider `kubernetes` do Terraform usa credenciais diretas do `kind_cluster` | Permite `terraform apply` funcionar numa máquina limpa, sem exigir configuração prévia de `~/.kube/config`                                                                                                                                                                                                                                                 |
 | Nome da imagem GHCR consistente em `k8s/`, `infra/` e `scripts/` | O nome do owner do GHCR é **hardcoded** nesses três lugares (não é lido dinamicamente como no pipeline) — se a conta/organização do GitHub mudar novamente, os três precisam ser atualizados manualmente                                                                                                                                                   |
 | `build_local_image: true` (default) no módulo `application` do Terraform | Builda a imagem e carrega via `kind load` a partir do `terraform apply`, igual ao `kind-setup.sh` — evita que o Terraform dependa de um pull real do GHCR (que exigiria um `ghcr_token` válido para pacotes privados) só para rodar localmente                                                                                                             |
 | Job `deploy` do CI/CD usa `terraform apply`, não `kubectl apply` | O provisionamento do ambiente no pipeline precisa ser feito pelo Terraform, gerenciando cada recurso como resource, e não por `kubectl apply` direto                                                                                                                                                                                                       |
-| Modo `build_local_image = false` não usa `kind load docker-image` | O Docker dos runners do GitHub Actions usa o *containerd image store*, que quebra o `kind load docker-image` com `failed to detect containerd snapshotter`. O carregamento passa a ser feito pelo próprio kubelet, puxando do GHCR com o `ghcr-secret` (ver seção 10.H)                                                                                    |
+| Modo `build_local_image = false` não usa `kind load docker-image` | O Docker dos runners do GitHub Actions usa o *containerd image store*, que quebra o `kind load docker-image` com `failed to detect containerd snapshotter`. O carregamento passa a ser feito pelo próprio kubelet, puxando do GHCR com o `ghcr-secret`                                                                                    |
 | Trigger do workflow em `branches: ["**"]`, sem nomes fixos | Evita precisar editar `ci-cd.yml` toda vez que uma nova branch é criada — o pipeline roda em qualquer branch, além de PRs para `main`                                                                                                                                                                                                                      |
 
 ---
@@ -567,7 +565,7 @@ Sobe o mesmo ambiente aplicando os manifestos de `k8s/` via `kubectl apply`, em 
 
 Se você já usou a Opção C (Terraform) na mesma máquina, destrua aquele cluster primeiro
 (`kind delete cluster --name oficina`) — os dois métodos usam o mesmo nome de cluster e não podem
-coexistir (ver [seção 10.D](#10-troubleshooting--incidentes-reais-já-enfrentados)).
+coexistir.
 
 ```bash
 # 1. Clonar o repositório
@@ -612,7 +610,7 @@ kubectl -n oficina get hpa
 
 Se você já usou a Opção B (script) na mesma máquina, destrua aquele cluster primeiro
 (`kind delete cluster --name oficina`) — os dois métodos usam o mesmo nome de cluster e não podem
-coexistir (ver [seção 10.D](#10-troubleshooting--incidentes-reais-já-enfrentados)).
+coexistir.
 
 ```bash
 # 1. Clonar o repositório
@@ -685,160 +683,7 @@ curl -X POST http://localhost:30080/api/ordens-servico/{id}/aprovacao-orcamento 
 
 ---
 
-## 10. Troubleshooting — incidentes reais já enfrentados
-
-### A. Rollout da app trava e estoura o `progress deadline` (600s)
-
-**Sintoma:** `kubectl rollout status deployment/oficina-app` fica em "0 of 2 updated replicas are
-available" até dar timeout, em toda execução do pipeline.
-
-**Causa raiz:** as três probes apontavam para `/actuator/health`, o endpoint agregado do Actuator, que
-inclui por padrão um `MailHealthIndicator` (ativo porque `spring.mail.host` sempre tem um valor,
-mesmo que default). Se o Mailpit não estivesse pronto no momento das probes, `/actuator/health`
-retornava `DOWN` e os pods nunca ficavam `Ready`.
-
-**Correção aplicada:**
-1. `management.health.mail.enabled: false` em `application.yaml` — e-mail não deve gatear o
-   *readiness* da aplicação. Essa é a correção que permanece válida: com o indicador desabilitado, o
-   rollout da app deixa de depender de o Mailpit já estar de pé, independente de qual método
-   provisiona o ambiente (script, Terraform local ou CI).
-2. No pipeline baseado em `kubectl apply` (anterior à adoção do Terraform no CI/CD), foi adicionado um
-   passo explícito de espera pelo rollout do Mailpit antes do deploy da aplicação, eliminando a
-   corrida. Esse passo não existe mais no job `deploy` atual — deixou de ser necessário porque o
-   Terraform aguarda o rollout de cada `Deployment` individualmente e a correção 1 já garante que a
-   app não depende da saúde do Mailpit.
-
-### B. `ImagePullBackOff` — "not found" ao subir a aplicação
-
-**Sintoma:** eventos do namespace mostravam `Failed to pull image "ghcr.io/<owner>/oficina-app:latest":
-... not found`, mesmo a imagem já tendo sido carregada localmente via `kind load`.
-
-**Causa raiz:** `k8s/deployment-app.yaml` (e também `infra/variables.tf`,
-`infra/modules/application/variables.tf` e `scripts/kind-setup.sh`) tinham o **owner do GHCR
-hardcoded** para uma conta diferente da que o pipeline realmente usa
-(`ghcr.io/${{ github.repository_owner }}/oficina-app`, que resolve para `robsonago`). O `kind load`
-carregava a imagem sob o nome correto, mas o Deployment pedia um nome diferente, nunca carregado
-localmente — o kubelet caía no fallback de pull remoto e falhava.
-
-**Correção aplicada:** todas as referências alinhadas para `ghcr.io/robsonago/oficina-app`.
-
-**Lição:** como esse valor é hardcoded (não dinâmico) em `k8s/`, `infra/` e `scripts/`, **se o
-repositório for transferido para outra conta/organização novamente, essas referências precisam ser
-atualizadas manualmente** nesses três lugares.
-
-### C. `FailedComputeMetricsReplicas` / `FailedGetResourceMetric` no HPA logo após o cluster subir
-
-**Sintoma:** eventos de warning no HPA nos primeiros 1-2 minutos após o deploy.
-
-**Causa:** o `metrics-server` ainda não coletou nenhuma amostra de uso de CPU — é o comportamento
-normal logo após a instalação. Resolve sozinho assim que a primeira coleta acontece.
-
-### D. `terraform apply` falha com "node(s) already exist for a cluster with the name..."
-
-**Sintoma:**
-```
-Error: node(s) already exist for a cluster with the name "oficina"
-```
-
-**Causa raiz:** `./scripts/kind-setup.sh` cria o cluster kind **imperativamente** (`kind create
-cluster`), fora do controle do Terraform. Se esse cluster (`oficina`) ainda existir quando você rodar
-`terraform apply` (Opção C), o Terraform tenta criar um `kind_cluster` novo com o mesmo nome — e o
-`kind` recusa, porque nomes de cluster precisam ser únicos na máquina. Como o Terraform nunca chegou a
-"adotar" esse cluster no seu state, ele não sabe que já existe.
-
-**Regra para evitar:** **nunca tenha um cluster `oficina` de um método enquanto usa o outro.** Antes
-de trocar entre a Opção B (script) e a Opção C (Terraform), destrua o cluster do método anterior:
-
-```bash
-kind delete cluster --name oficina
-```
-
-Só então rode `terraform apply` (ou `./scripts/kind-setup.sh`, no sentido inverso).
-
-### E. `terraform apply` falha com "failed to decode base64 data (sensitive value)"
-
-**Sintoma:**
-```
-Error: Error in function call
-Call to function "base64decode" failed: failed to decode base64 data (sensitive value).
-```
-nas três linhas do `provider "kubernetes"` em `infra/main.tf` (`client_certificate`, `client_key`,
-`cluster_ca_certificate`).
-
-**Causa raiz:** o provider `tehcyx/kind` já retorna esses três atributos **decodificados** — ele expõe
-`string(config.CertData/KeyData/CAData)` de um `rest.Config` do client-go, não uma string base64.
-Aplicar `base64decode()` em cima de um valor que já é texto PEM puro falha, porque PEM não é um
-alfabeto base64 válido (contém `-----BEGIN CERTIFICATE-----`, quebras de linha, etc.).
-
-**Correção aplicada:** removido o `base64decode()` das três linhas — os valores de
-`module.cluster.client_certificate` etc. são passados diretamente ao `provider "kubernetes"`.
-
-### F. `terraform plan`/`apply` falha com "Unexpected Identity Change"
-
-**Sintoma:**
-```
-Error: Unexpected Identity Change: During the read operation, the Terraform Provider
-unexpectedly returned a different identity then the previously stored one.
-```
-
-**Causa raiz:** o state do Terraform ficou inconsistente porque um `apply` anterior falhou **no meio**
-da criação de um recurso (ex: o `kubernetes_deployment.app` travado esperando o rollout, por causa dos
-incidentes A/E acima) — o objeto chegou a ser criado no cluster, mas o Terraform não terminou de
-gravar todos os metadados de identidade no state.
-
-**Correção aplicada:** como o ambiente é local e descartável, a solução mais simples e segura foi
-destruir o cluster de verdade e zerar o state local, para recomeçar do zero sem conflito:
-```bash
-kind delete cluster --name oficina
-rm infra/terraform.tfstate infra/terraform.tfstate.backup
-terraform apply
-```
-
-### G. `ImagePullBackOff` com "401 Unauthorized" ao rodar só via Terraform
-
-**Sintoma:**
-```
-Failed to pull image "ghcr.io/robsonago/oficina-app:latest": ... 401 Unauthorized
-```
-mesmo com o `ghcr-secret` criado.
-
-**Causa raiz:** diferente do `scripts/kind-setup.sh`, o módulo Terraform `application` originalmente
-**não buildava nem carregava a imagem localmente** — ele só referenciava `var.app_image` e dependia de
-um pull real do GHCR. Como o pacote `oficina-app` é privado e `var.ghcr_token` tem default vazio
-(`""`), o pull anônimo falhava com 401.
-
-**Correção aplicada:** adicionado o toggle `build_local_image` (default `true`) ao módulo
-`application`, que builda e carrega a imagem localmente via `kind load docker-image` — ver
-[seção 4](#4-terraform--infraestrutura-como-código-em-infra). Elimina a dependência do GHCR no fluxo
-100% local.
-
-### H. `kind load docker-image` falha no CI com "failed to detect containerd snapshotter"
-
-**Sintoma:** rodando `terraform apply` com `build_local_image = false` no runner do GitHub Actions
-(job `deploy` do pipeline), o `docker pull` da imagem completava normalmente, mas o passo seguinte
-falhava:
-```
-ERROR: failed to detect containerd snapshotter
-Error: local-exec provisioner error
-```
-
-**Causa raiz:** o Docker instalado nos runners `ubuntu-latest` do GitHub Actions usa o *containerd
-image store* como backend. O `kind load docker-image` faz um `docker save` internamente para extrair
-a imagem e carregá-la no node; esse backend gera um tar em formato OCI que a versão do `kind` usada no
-pipeline (v0.23.0) não consegue interpretar, resultando nesse erro — um problema conhecido do `kind`
-com Docker configurado dessa forma, não específico deste projeto.
-
-**Correção aplicada:** removido o `kind load docker-image` do modo `build_local_image = false` em
-`infra/modules/application/main.tf`. Nesse modo, o `null_resource` passou a só rodar `docker pull`
-(validação de que a imagem existe e a autenticação funciona) e o carregamento da imagem nos nós ficou
-por conta do próprio kubelet, que já tem para isso o `ghcr-secret` (`kubernetes_secret.ghcr`)
-configurado como `imagePullSecrets` no Deployment da aplicação. O modo `build_local_image = true`
-(uso local) não foi afetado — continua usando `kind load docker-image` normalmente, porque builda a
-partir de uma imagem que só existe localmente, sem estar publicada em nenhum registry.
-
----
-
-## 11. Comandos de referência rápida
+## 10. Comandos de referência rápida
 
 ```bash
 # docker-compose
