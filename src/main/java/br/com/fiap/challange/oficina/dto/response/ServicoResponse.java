@@ -1,6 +1,6 @@
 package br.com.fiap.challange.oficina.dto.response;
 
-import br.com.fiap.challange.oficina.model.Servico;
+import br.com.fiap.challange.oficina.domain.model.Servico;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;

@@ -1,15 +1,121 @@
 # Relatório de Análise de Vulnerabilidades
 
-## Sistema: Oficina Mecânica — Back-end MVP
+## Sistema: Oficina Mecânica — Back-end (relatório vivo, reexecutado a cada fase)
 
-**Data:** 2026-05-04  
-**Versão da aplicação:** 0.0.1-SNAPSHOT  
-**Metodologia:** Análise estática de código + auditoria de dependências (Maven `dependency:list`)  
+**Histórico de reanálises deste documento:**
+
+| Fase | Data | Versão da aplicação | O que mudou |
+|---|---|---|---|
+| Fase 1 (original) | 2026-05-04 | `0.0.1-SNAPSHOT` | Análise inicial — seções 1 a 8 abaixo |
+| Fase 2 (reanálise) | 2026-07-03 | `2.0.0-SNAPSHOT` | Ver [seção 0](#0-reanálise--fase-2-2026-07-03) |
+
+**Metodologia (ambas as reanálises):** Análise estática de código + auditoria de dependências (Maven
+`dependency:list`)  
 **Ferramenta complementar recomendada:** OWASP Dependency-Check, Snyk, Trivy
 
 ---
 
+## 0. Reanálise — Fase 2 (2026-07-03)
+
+> Esta seção documenta o que mudou desde a análise original da Fase 1 (seções 1-8 abaixo, mantidas
+> intactas para rastreabilidade). Metodologia idêntica à da Fase 1: `./mvnw dependency:list` executado
+> de verdade + releitura do código-fonte atual. Nenhum item foi corrigido a partir desta reanálise —
+> assim como o relatório original, este documento só reporta achados.
+
+### 0.1 O que mudou nas dependências
+
+`./mvnw dependency:list` foi reexecutado no código atual (128 artefatos resolvidos, ante 115 na Fase 1
+— parte da diferença de contagem também vem de uma versão mais nova do plugin
+`maven-dependency-plugin`, que expande mais transitivos no relatório; não é indicativo de 13
+dependências de risco novas). Mudanças reais identificadas:
+
+| Artefato | Fase 1 | Fase 2 | O que significa |
+|---|---|---|---|
+| `org.springdoc:springdoc-openapi-starter-webmvc-ui` | 2.3.0 ⚠️ Desatualizado | **2.8.3** | Resolve o alerta de "versão desatualizada" da Fase 1 (recomendação P4 da seção 7) |
+| `io.swagger.core.v3:swagger-*-jakarta` | 2.2.19 | 2.2.27 | Trazido junto pelo bump do springdoc acima |
+| `org.webjars:swagger-ui` | 5.10.3 | 5.18.2 | Idem |
+| `org.mapstruct:mapstruct` (+ `mapstruct-processor`) | — (não existia) | **1.6.3** (novo) | Adicionado para a conversão domínio ↔ entidade JPA no refactor hexagonal desta fase. `mapstruct-processor` é *annotation processor* (só gera código em tempo de compilação) — não entra no `.jar`/imagem Docker final, sem exposição em runtime |
+
+Nenhum CVE crítico ou alto identificado nas versões novas (mesma metodologia da seção 2 abaixo).
+
+### 0.2 Status de cada vulnerabilidade da Fase 1 — todas continuam ABERTAS
+
+Nenhuma das 7 vulnerabilidades originais foi corrigida como efeito colateral do trabalho desta fase
+(o foco da Fase 2 foi arquitetura/infraestrutura, não hardening de segurança). Confirmado lendo o
+código atual, arquivo por arquivo:
+
+| ID | Descrição | Status na Fase 2 |
+|---|---|---|
+| VUL-001 | Senha padrão `admin123` hardcoded no `DataInitializer` | 🔴 **Aberto** — e com um agravante novo, ver 0.3 abaixo |
+| VUL-002 | Valor padrão do `JWT_SECRET` exposto em `application.yaml` | 🔴 **Aberto** — `application.yaml:37` inalterado |
+| VUL-003 | Sem rate limiting no `/api/auth/login` | 🔴 **Aberto** — nenhuma dependência de rate limiting (`resilience4j`/`bucket4j`) foi adicionada |
+| VUL-004 | CORS não configurado explicitamente | 🔴 **Aberto** — `SecurityConfig.java` continua sem bean de CORS |
+| VUL-005 | Exceptions do JWT suprimidas silenciosamente | 🔴 **Aberto** — `JwtAuthenticationFilter.java:49-50` ainda é `catch (Exception ignored) {}` |
+| VUL-006 | Swagger UI público sem controle por ambiente | 🔴 **Aberto** — `SecurityConfig.java:41` continua com `permitAll()` incondicional |
+| VUL-007 | `open-in-view` habilitado (padrão) | 🔴 **Aberto** — `application.yaml` não define `spring.jpa.open-in-view: false` |
+
+### 0.3 Achado novo — agravante do VUL-001: senha em texto puro no log
+
+**Localização:** `infrastructure/config/DataInitializer.java:29`
+
+```java
+log.info("Usuário admin criado com sucesso. Senha padrão: admin123");
+```
+
+**Descrição:** além da senha padrão hardcoded (já era o VUL-001 original), a linha de log imprime o
+valor da senha em texto puro no log da aplicação toda vez que o admin é criado. Isso soma um segundo
+vetor de exposição: quem tiver acesso aos logs (inclusive agregadores de log em produção, se
+configurados sem redação) vê a senha, mesmo sem acesso ao código-fonte.
+
+**OWASP:** A09:2021 – Security Logging and Monitoring Failures (armazenamento de dado sensível em log)
+combinado com A07:2021 (já cobria o VUL-001 original).
+
+**Mitigação recomendada:** junto com a mitigação já sugerida no VUL-001 (externalizar a senha via
+variável de ambiente obrigatória), remover o valor da senha da mensagem de log — logar só
+`"Usuário admin criado com sucesso."`, sem o valor.
+
+### 0.4 Achado da Fase 1 que foi corrigido nesta fase (fora do escopo deste relatório de segurança, mas vale registrar)
+
+Durante a auditoria de qualidade geral desta fase (`atividades/validacao_completa_aplicacao.md`,
+Correção 1), foi encontrado e corrigido um vazamento de informação interna independente das 7
+vulnerabilidades acima: `GlobalExceptionHandler.handleGeneric` devolvia `ex.getMessage()` no corpo de
+qualquer resposta HTTP 500 não mapeada — mensagens de exceção do Hibernate/JDBC frequentemente incluem
+nomes de tabela/coluna e detalhes de schema (CWE-209 / OWASP A09:2021). Já corrigido: a resposta agora
+é a mensagem genérica `"Erro interno no servidor"`, com o detalhe real só no log. Não é um item aberto
+— citado aqui só para manter este relatório de segurança como o índice completo do que foi encontrado
+e resolvido nesta fase.
+
+### 0.5 Nota sobre segredos de infraestrutura (Kubernetes/Terraform)
+
+Fora do escopo de "dependências e código Java", mas relevante para uma visão de segurança completa: os
+manifestos `k8s/secret.yaml` e `infra/variables.tf` têm senha do banco (`oficina123`) e `JWT_SECRET`
+versionados em texto puro no Git. Isso já foi analisado e documentado como decisão intencional (valores
+só para demonstração local, nunca produção) em `docs/arquitetura/infraestrutura.md` (seção 3.3) e no
+`README.md` (seção 14). Não é um achado novo desta reanálise, só um cross-reference para quem estiver
+lendo este relatório isoladamente.
+
+### 0.6 Resumo executivo da Fase 2
+
+| Severidade | Fase 1 | Fase 2 | Delta |
+|---|---|---|---|
+| 🔴 Crítica | 0 | 0 | — |
+| 🟠 Alta | 0 | 0 | — |
+| 🟡 Média | 3 | 3 | — (todas ainda abertas) |
+| 🔵 Baixa | 4 | 4 | — (todas ainda abertas) |
+| ℹ️ Informativa | 3 | 2 | -1 (springdoc desatualizado foi resolvido) |
+| Novo (0.3) | — | 1 | Agravante do VUL-001 (senha em log) |
+
+**Conclusão da Fase 2:** o hardening de segurança em si não avançou nesta fase — o esforço foi
+concentrado em arquitetura, infraestrutura e qualidade de código (ver `validacao_completa_aplicacao.md`
+e `_v2.md`). As 7 vulnerabilidades da Fase 1 continuam válidas e as recomendações da seção 7 abaixo
+permanecem como próximos passos recomendados antes de um ambiente de produção real.
+
+---
+
 ## 1. Resumo Executivo
+
+> *(Conteúdo original da análise da Fase 1, mantido intacto abaixo para rastreabilidade histórica —
+> ver seção 0 acima para o que mudou na Fase 2.)*
 
 | Severidade     | Quantidade |
 |----------------|------------|
@@ -66,7 +172,7 @@ neste relatório.
 
 ### 🟡 MÉDIA — VUL-001: Credenciais Padrão na Inicialização
 
-**Localização:** `src/main/java/br/com/fiap/challange/oficina/config/DataInitializer.java`
+**Localização:** `src/main/java/br/com/fiap/challange/oficina/infrastructure/config/DataInitializer.java`
 
 **Descrição:**  
 Um usuário administrador com senha `admin123` é criado automaticamente na primeira execução, caso não exista. Em
@@ -141,7 +247,7 @@ credential stuffing sem qualquer bloqueio.
 
 ### 🔵 BAIXA — VUL-004: CORS Não Configurado Explicitamente
 
-**Localização:** `src/main/java/br/com/fiap/challange/oficina/config/SecurityConfig.java`
+**Localização:** `src/main/java/br/com/fiap/challange/oficina/infrastructure/config/SecurityConfig.java`
 
 **Descrição:**  
 Não há configuração de CORS (Cross-Origin Resource Sharing). O comportamento padrão do Spring Boot rejeita requisições
@@ -231,11 +337,33 @@ a `LazyInitializationException` encadeada.
 
 **Mitigação recomendada:**
 
+Na Fase 2, com a migração para Arquitetura Hexagonal, identificou-se que habilitar
+`open-in-view: false` exige que o mapeamento entidade → DTO ocorra **dentro** da transação
+(no use case), e não no controller/adapter de entrada:
+
 ```yaml
 spring:
   jpa:
     open-in-view: false
 ```
+
+Se `open-in-view: false` for habilitado, garantir que toda associação lazy (`LAZY FetchType`)
+seja carregada dentro do `@Transactional` do use case antes de retornar a entidade ao controller.
+Alternativa: mapear entidade → DTO dentro da transação.
+
+---
+
+### Nota — Caminhos de Arquivo Atualizados na Fase 2
+
+Com a migração para Arquitetura Hexagonal, as classes de configuração e segurança foram
+movidas para dentro do pacote `infrastructure/`:
+
+| Classe                     | Caminho Fase 1                       | Caminho Fase 2                                      |
+|----------------------------|----------------------------------------|-------------------------------------------------------|
+| `SecurityConfig`          | `config/SecurityConfig.java`          | `infrastructure/config/SecurityConfig.java`          |
+| `JwtService`               | `security/JwtService.java`            | `infrastructure/security/JwtService.java`            |
+| `JwtAuthenticationFilter` | `security/JwtAuthenticationFilter.java` | `infrastructure/security/JwtAuthenticationFilter.java` |
+| `DataInitializer`         | `config/DataInitializer.java`         | `infrastructure/config/DataInitializer.java`         |
 
 ---
 

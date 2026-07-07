@@ -91,6 +91,28 @@ Medido em minutos. O sistema calcula o **tempo médio de execução** para fins 
 Ato de devolver o veículo ao cliente após a finalização dos serviços.  
 Corresponde ao status `ENTREGUE` — estado terminal da OS.
 
+### Token de Acesso
+
+Credencial JWT stateless gerada após autenticação bem-sucedida. Representado no domínio pelo
+value object `AuthToken`, que carrega `token`, `tipo` (Bearer), `username`, `role` e `expiresIn`.
+O domínio nunca depende de `UserDetails` do Spring Security — apenas dos dados necessários para
+o negócio.
+
+### Estatísticas Operacionais
+
+Visão agregada das Ordens de Serviço para fins de monitoramento administrativo. Calculada sob
+demanda e representada pelo value object `Estatisticas`, que contém tempo médio de execução
+(em minutos) e contagem de OS por status.
+
+### Notificação de Orçamento
+
+Comunicação enviada ao cliente por e-mail quando a Ordem de Serviço transita para o status
+`AGUARDANDO_APROVACAO`. Disparada automaticamente pela política de domínio via `EmailPort`.
+Em ambiente local/CI usa Mailpit (SMTP fake); em produção, configurável via variáveis de ambiente
+(`MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`).
+O cliente recebe o orçamento e pode aprovar ou rejeitar via endpoint
+`POST /api/ordens-servico/{id}/aprovacao-orcamento`.
+
 ---
 
 ## Status da Ordem de Serviço

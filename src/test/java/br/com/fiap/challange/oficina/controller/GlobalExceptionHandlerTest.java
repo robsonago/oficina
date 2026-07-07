@@ -1,6 +1,6 @@
 package br.com.fiap.challange.oficina.controller;
 
-import br.com.fiap.challange.oficina.exception.*;
+import br.com.fiap.challange.oficina.domain.exception.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -16,6 +16,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import br.com.fiap.challange.oficina.infrastructure.adapter.in.rest.GlobalExceptionHandler;
 
 class GlobalExceptionHandlerTest {
 
@@ -77,11 +78,12 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void deveRetornar500ParaErroGenerico() {
+    void deveRetornar500ParaErroGenericoSemVazarMensagemInterna() {
         ResponseEntity<GlobalExceptionHandler.ErroResponse> response =
-                handler.handleGeneric(new RuntimeException("erro inesperado"));
+                handler.handleGeneric(new RuntimeException("erro inesperado com detalhe de schema/tabela"));
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
-        assertThat(response.getBody().mensagem()).contains("erro inesperado");
+        assertThat(response.getBody().mensagem()).doesNotContain("erro inesperado com detalhe de schema/tabela");
+        assertThat(response.getBody().mensagem()).isEqualTo("Erro interno no servidor");
     }
 
     @Test

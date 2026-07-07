@@ -1,10 +1,10 @@
 package br.com.fiap.challange.oficina.integration;
 
 import br.com.fiap.challange.oficina.dto.request.ServicoRequest;
-import br.com.fiap.challange.oficina.model.Usuario;
-import br.com.fiap.challange.oficina.repository.ServicoRepository;
-import br.com.fiap.challange.oficina.repository.UsuarioRepository;
-import br.com.fiap.challange.oficina.security.JwtService;
+import br.com.fiap.challange.oficina.domain.model.Usuario;
+import br.com.fiap.challange.oficina.domain.port.out.ServicoRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.UsuarioRepositoryPort;
+import br.com.fiap.challange.oficina.infrastructure.security.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,9 +37,9 @@ class ServicoControllerIT {
     @Autowired
     ObjectMapper objectMapper;
     @Autowired
-    ServicoRepository servicoRepository;
+    ServicoRepositoryPort servicoRepository;
     @Autowired
-    UsuarioRepository usuarioRepository;
+    UsuarioRepositoryPort usuarioRepository;
     @Autowired
     JwtService jwtService;
     @Autowired
@@ -56,9 +56,7 @@ class ServicoControllerIT {
                     .username("admin_servico_it").password(passwordEncoder.encode("admin123"))
                     .role("ADMIN").ativo(true).build());
         }
-        UserDetails userDetails = new User("admin_servico_it", "admin123",
-                List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
-        token = "Bearer " + jwtService.generateToken(userDetails);
+        token = "Bearer " + jwtService.generateToken("admin_servico_it", "ADMIN");
     }
 
     @AfterEach

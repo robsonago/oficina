@@ -19,6 +19,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import java.util.List;
 
 import static org.mockito.Mockito.*;
+import br.com.fiap.challange.oficina.infrastructure.security.JwtService;
+import br.com.fiap.challange.oficina.infrastructure.security.JwtAuthenticationFilter;
 
 @ExtendWith(MockitoExtension.class)
 class JwtAuthenticationFilterTest {
@@ -50,7 +52,7 @@ class JwtAuthenticationFilterTest {
     @Test
     void deveContinuarSemAuthorizationHeader() throws Exception {
         when(request.getHeader("Authorization")).thenReturn(null);
-        filter.doFilterInternal(request, response, filterChain);
+        filter.doFilter(request, response, filterChain);
         verify(filterChain).doFilter(request, response);
         verifyNoInteractions(jwtService);
     }
@@ -58,7 +60,7 @@ class JwtAuthenticationFilterTest {
     @Test
     void deveContinuarComHeaderSemBearer() throws Exception {
         when(request.getHeader("Authorization")).thenReturn("Basic dXNlcjpwYXNz");
-        filter.doFilterInternal(request, response, filterChain);
+        filter.doFilter(request, response, filterChain);
         verify(filterChain).doFilter(request, response);
         verifyNoInteractions(jwtService);
     }
@@ -71,7 +73,7 @@ class JwtAuthenticationFilterTest {
         when(userDetailsService.loadUserByUsername("admin")).thenReturn(user);
         when(jwtService.isTokenValid("valid.token.here", user)).thenReturn(true);
 
-        filter.doFilterInternal(request, response, filterChain);
+        filter.doFilter(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
     }
@@ -84,7 +86,7 @@ class JwtAuthenticationFilterTest {
         when(userDetailsService.loadUserByUsername("admin")).thenReturn(user);
         when(jwtService.isTokenValid("bad.token", user)).thenReturn(false);
 
-        filter.doFilterInternal(request, response, filterChain);
+        filter.doFilter(request, response, filterChain);
         verify(filterChain).doFilter(request, response);
     }
 
@@ -93,7 +95,7 @@ class JwtAuthenticationFilterTest {
         when(request.getHeader("Authorization")).thenReturn("Bearer malformed");
         when(jwtService.extractUsername("malformed")).thenThrow(new RuntimeException("parse error"));
 
-        filter.doFilterInternal(request, response, filterChain);
+        filter.doFilter(request, response, filterChain);
         verify(filterChain).doFilter(request, response);
     }
 }

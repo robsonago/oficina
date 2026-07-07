@@ -2,11 +2,11 @@ package br.com.fiap.challange.oficina.integration;
 
 import br.com.fiap.challange.oficina.dto.request.ClienteRequest;
 import br.com.fiap.challange.oficina.dto.request.VeiculoRequest;
-import br.com.fiap.challange.oficina.model.Usuario;
-import br.com.fiap.challange.oficina.repository.ClienteRepository;
-import br.com.fiap.challange.oficina.repository.UsuarioRepository;
-import br.com.fiap.challange.oficina.repository.VeiculoRepository;
-import br.com.fiap.challange.oficina.security.JwtService;
+import br.com.fiap.challange.oficina.domain.model.Usuario;
+import br.com.fiap.challange.oficina.domain.port.out.ClienteRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.UsuarioRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.VeiculoRepositoryPort;
+import br.com.fiap.challange.oficina.infrastructure.security.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,11 +38,11 @@ class VeiculoControllerIT {
     @Autowired
     ObjectMapper objectMapper;
     @Autowired
-    VeiculoRepository veiculoRepository;
+    VeiculoRepositoryPort veiculoRepository;
     @Autowired
-    ClienteRepository clienteRepository;
+    ClienteRepositoryPort clienteRepository;
     @Autowired
-    UsuarioRepository usuarioRepository;
+    UsuarioRepositoryPort usuarioRepository;
     @Autowired
     JwtService jwtService;
     @Autowired
@@ -61,9 +61,7 @@ class VeiculoControllerIT {
                     .username("admin_veiculo_it").password(passwordEncoder.encode("admin123"))
                     .role("ADMIN").ativo(true).build());
         }
-        UserDetails userDetails = new User("admin_veiculo_it", "admin123",
-                List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
-        token = "Bearer " + jwtService.generateToken(userDetails);
+        token = "Bearer " + jwtService.generateToken("admin_veiculo_it", "ADMIN");
 
         String clienteJson = mockMvc.perform(post("/api/clientes")
                         .header("Authorization", token)

@@ -10,6 +10,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import br.com.fiap.challange.oficina.infrastructure.security.JwtService;
 
 class JwtServiceTest {
 
@@ -26,30 +27,27 @@ class JwtServiceTest {
 
     @Test
     void deveGerarTokenValido() {
-        UserDetails user = userDetails("admin");
-        String token = jwtService.generateToken(user);
+        String token = jwtService.generateToken("admin", "ROLE_ADMIN");
         assertThat(token).isNotBlank();
     }
 
     @Test
     void deveExtrairUsernameDoToken() {
-        UserDetails user = userDetails("tecnico");
-        String token = jwtService.generateToken(user);
+        String token = jwtService.generateToken("tecnico", "ROLE_ADMIN");
         assertThat(jwtService.extractUsername(token)).isEqualTo("tecnico");
     }
 
     @Test
     void deveValidarTokenParaUsuarioCorreto() {
         UserDetails user = userDetails("admin");
-        String token = jwtService.generateToken(user);
+        String token = jwtService.generateToken("admin", "ROLE_ADMIN");
         assertThat(jwtService.isTokenValid(token, user)).isTrue();
     }
 
     @Test
     void deveInvalidarTokenParaUsuarioDiferente() {
-        UserDetails admin = userDetails("admin");
         UserDetails outro = userDetails("outro");
-        String token = jwtService.generateToken(admin);
+        String token = jwtService.generateToken("admin", "ROLE_ADMIN");
         assertThat(jwtService.isTokenValid(token, outro)).isFalse();
     }
 
@@ -60,8 +58,7 @@ class JwtServiceTest {
         ReflectionTestUtils.setField(serviceExpirado, "expiration", -1000L);
 
         UserDetails user = userDetails("admin");
-        String token = serviceExpirado.generateToken(user);
-        // JJWT lança ExpiredJwtException ao parsear — o filtro captura essa exceção
+        String token = serviceExpirado.generateToken("admin", "ROLE_ADMIN");
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> serviceExpirado.isTokenValid(token, user))
                 .isInstanceOf(io.jsonwebtoken.ExpiredJwtException.class);
     }
@@ -73,8 +70,7 @@ class JwtServiceTest {
 
     @Test
     void deveGerarTokenSemAuthorities() {
-        UserDetails user = new User("anon", "pass", List.of());
-        String token = jwtService.generateToken(user);
+        String token = jwtService.generateToken("anon", "");
         assertThat(jwtService.extractUsername(token)).isEqualTo("anon");
     }
 

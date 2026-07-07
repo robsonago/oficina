@@ -1,0 +1,921 @@
+{
+  "info": {
+    "name": "Oficina Mecânica",
+    "_postman_id": "oficina-mecanica-fiap-fase2",
+    "description": "Collection com geração automática de dados em cada execução.\n\n- CPF matematicamente válido gerado no pre-request\n- Placa aleatória (formato antigo ou Mercosul)\n- IDs capturados automaticamente e reutilizados nos requests seguintes\n- Execute em ordem de cima para baixo para o fluxo completo\n\nCompatível com Postman (scripts ativos) e Insomnia (import funciona; scripts de geração automática são ignorados).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",          "value": "http://localhost:8080", "type": "string" },
+    { "key": "token",             "value": "",                      "type": "string" },
+    { "key": "clienteId",         "value": "",                      "type": "string" },
+    { "key": "clienteDocumento",  "value": "",                      "type": "string" },
+    { "key": "veiculoId",         "value": "",                      "type": "string" },
+    { "key": "veiculoPlaca",      "value": "",                      "type": "string" },
+    { "key": "pecaId",            "value": "",                      "type": "string" },
+    { "key": "servicoId",         "value": "",                      "type": "string" },
+    { "key": "osId",              "value": "",                      "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login: salva token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login realizado com sucesso', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const j = pm.response.json();",
+                  "    pm.collectionVariables.set('token', j.token);",
+                  "    console.log('Token salvo. Role: ' + j.role);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"admin\",\n    \"password\": \"admin123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Registrar Usuário (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"tecnico1\",\n    \"password\": \"senha123\",\n    \"role\": \"TECNICO\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/registrar",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "registrar"]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Clientes",
+      "item": [
+        {
+          "name": "Criar Cliente: salva clienteId + documento",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Gera CPF matematicamente válido (algoritmo Receita Federal)",
+                  "function gerarCPF() {",
+                  "    const n = Array.from({length: 9}, () => Math.floor(Math.random() * 10));",
+                  "    let s = n.reduce((a, v, i) => a + v * (10 - i), 0);",
+                  "    const d1 = s % 11 < 2 ? 0 : 11 - (s % 11);",
+                  "    s = [...n, d1].reduce((a, v, i) => a + v * (11 - i), 0);",
+                  "    const d2 = s % 11 < 2 ? 0 : 11 - (s % 11);",
+                  "    return [...n, d1, d2].join('').replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/, '$1.$2.$3-$4');",
+                  "}",
+                  "const nomes = ['Ana Lima','Carlos Souza','Maria Santos','João Oliveira',",
+                  "               'Paula Costa','Rafael Mendes','Fernanda Rocha','Bruno Alves',",
+                  "               'Juliana Ferreira','Diego Martins','Carla Duarte','Lucas Pereira'];",
+                  "const ruas  = ['das Flores','do Sol','da Paz','Verde','Azul','Nova','das Acácias'];",
+                  "const ts = Date.now();",
+                  "pm.collectionVariables.set('_cpf',          gerarCPF());",
+                  "pm.collectionVariables.set('_nomeCliente',  nomes[Math.floor(Math.random()*nomes.length)] + ' #' + ts.toString().slice(-4));",
+                  "pm.collectionVariables.set('_emailCliente', 'cliente' + ts + '@oficina.test');",
+                  "pm.collectionVariables.set('_telefone',     '119' + Math.floor(Math.random()*90000000 + 10000000));",
+                  "pm.collectionVariables.set('_endereco',     'Rua ' + ruas[Math.floor(Math.random()*ruas.length)] + ', ' + Math.floor(Math.random()*999+1));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cliente criado (201)', () => {",
+                  "    pm.response.to.have.status(201);",
+                  "    const j = pm.response.json();",
+                  "    pm.collectionVariables.set('clienteId',        j.id);",
+                  "    pm.collectionVariables.set('clienteDocumento', pm.collectionVariables.get('_cpf'));",
+                  "    console.log('clienteId=' + j.id + ' | documento=' + pm.collectionVariables.get('_cpf'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nome\": \"{{_nomeCliente}}\",\n    \"documento\": \"{{_cpf}}\",\n    \"email\": \"{{_emailCliente}}\",\n    \"telefone\": \"{{_telefone}}\",\n    \"endereco\": \"{{_endereco}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/clientes",
+              "host": ["{{base_url}}"],
+              "path": ["api", "clientes"]
+            }
+          }
+        },
+        {
+          "name": "Listar Clientes",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/clientes",
+              "host": ["{{base_url}}"],
+              "path": ["api", "clientes"]
+            }
+          }
+        },
+        {
+          "name": "Buscar Cliente por ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/clientes/{{clienteId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "clientes", "{{clienteId}}"]
+            }
+          }
+        },
+        {
+          "name": "Buscar Cliente por Documento",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/clientes/documento/{{clienteDocumento}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "clientes", "documento", "{{clienteDocumento}}"]
+            }
+          }
+        },
+        {
+          "name": "Atualizar Cliente",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nome\": \"{{_nomeCliente}} Atualizado\",\n    \"documento\": \"{{clienteDocumento}}\",\n    \"email\": \"upd.{{_emailCliente}}\",\n    \"telefone\": \"{{_telefone}}\",\n    \"endereco\": \"{{_endereco}} - Apto 2\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/clientes/{{clienteId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "clientes", "{{clienteId}}"]
+            }
+          }
+        },
+        {
+          "name": "Desativar Cliente",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/clientes/{{clienteId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "clientes", "{{clienteId}}"]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Veículos",
+      "item": [
+        {
+          "name": "Criar Veículo: salva veiculoId + placa",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Gera placa aleatória (formato antigo ABC1234 ou Mercosul ABC1D23)",
+                  "function gerarPlaca() {",
+                  "    const L = () => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random()*26)];",
+                  "    const D = () => Math.floor(Math.random()*10);",
+                  "    return Math.random() > 0.5",
+                  "        ? `${L()}${L()}${L()}${D()}${D()}${D()}${D()}`",
+                  "        : `${L()}${L()}${L()}${D()}${L()}${D()}${D()}`;",
+                  "}",
+                  "const fabricantes = [",
+                  "    { marca: 'Toyota',     modelos: ['Corolla','Hilux','Yaris','RAV4'] },",
+                  "    { marca: 'Honda',      modelos: ['Civic','HR-V','Fit','City'] },",
+                  "    { marca: 'Chevrolet',  modelos: ['Onix','Cruze','S10','Tracker'] },",
+                  "    { marca: 'Volkswagen', modelos: ['Gol','Polo','T-Cross','Virtus'] },",
+                  "    { marca: 'Ford',       modelos: ['Ka','EcoSport','Ranger','Bronco'] },",
+                  "    { marca: 'Hyundai',    modelos: ['HB20','Creta','Tucson'] },",
+                  "    { marca: 'Fiat',       modelos: ['Argo','Mobi','Toro','Pulse'] }",
+                  "];",
+                  "const f = fabricantes[Math.floor(Math.random()*fabricantes.length)];",
+                  "pm.collectionVariables.set('_placa',  gerarPlaca());",
+                  "pm.collectionVariables.set('_marca',  f.marca);",
+                  "pm.collectionVariables.set('_modelo', f.modelos[Math.floor(Math.random()*f.modelos.length)]);",
+                  "pm.collectionVariables.set('_ano',    2015 + Math.floor(Math.random()*10));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Veículo criado (201)', () => {",
+                  "    pm.response.to.have.status(201);",
+                  "    const j = pm.response.json();",
+                  "    pm.collectionVariables.set('veiculoId',    j.id);",
+                  "    pm.collectionVariables.set('veiculoPlaca', pm.collectionVariables.get('_placa'));",
+                  "    console.log('veiculoId=' + j.id + ' | placa=' + pm.collectionVariables.get('_placa'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"placa\": \"{{_placa}}\",\n    \"marca\": \"{{_marca}}\",\n    \"modelo\": \"{{_modelo}}\",\n    \"ano\": {{_ano}},\n    \"clienteId\": {{clienteId}}\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/veiculos",
+              "host": ["{{base_url}}"],
+              "path": ["api", "veiculos"]
+            }
+          }
+        },
+        {
+          "name": "Listar Veículos",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/veiculos",
+              "host": ["{{base_url}}"],
+              "path": ["api", "veiculos"]
+            }
+          }
+        },
+        {
+          "name": "Buscar Veículo por ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/veiculos/{{veiculoId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "veiculos", "{{veiculoId}}"]
+            }
+          }
+        },
+        {
+          "name": "Buscar Veículo por Placa",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/veiculos/placa/{{veiculoPlaca}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "veiculos", "placa", "{{veiculoPlaca}}"]
+            }
+          }
+        },
+        {
+          "name": "Listar Veículos do Cliente",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/veiculos/cliente/{{clienteId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "veiculos", "cliente", "{{clienteId}}"]
+            }
+          }
+        },
+        {
+          "name": "Atualizar Veículo",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"placa\": \"{{veiculoPlaca}}\",\n    \"marca\": \"{{_marca}}\",\n    \"modelo\": \"{{_modelo}} Plus\",\n    \"ano\": {{_ano}},\n    \"clienteId\": {{clienteId}}\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/veiculos/{{veiculoId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "veiculos", "{{veiculoId}}"]
+            }
+          }
+        },
+        {
+          "name": "Desativar Veículo",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/veiculos/{{veiculoId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "veiculos", "{{veiculoId}}"]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Peças",
+      "item": [
+        {
+          "name": "Criar Peça: salva pecaId",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const catalogo = [",
+                  "    { nome: 'Filtro de Óleo',       codigo: 'FO' },",
+                  "    { nome: 'Pastilha de Freio',     codigo: 'PF' },",
+                  "    { nome: 'Correia Dentada',       codigo: 'CD' },",
+                  "    { nome: 'Vela de Ignição',       codigo: 'VI' },",
+                  "    { nome: 'Filtro de Ar',          codigo: 'FA' },",
+                  "    { nome: 'Amortecedor Dianteiro', codigo: 'AM' },",
+                  "    { nome: 'Bateria 60Ah',          codigo: 'BT' },",
+                  "    { nome: 'Fluido de Freio DOT4',  codigo: 'FF' },",
+                  "    { nome: 'Disco de Freio',        codigo: 'DF' },",
+                  "    { nome: 'Rolamento de Roda',     codigo: 'RR' }",
+                  "];",
+                  "const ts   = Date.now();",
+                  "const peca = catalogo[Math.floor(Math.random()*catalogo.length)];",
+                  "pm.collectionVariables.set('_pecaNome',    peca.nome + ' #' + ts.toString().slice(-4));",
+                  "pm.collectionVariables.set('_pecaPreco',   (Math.random()*250 + 15).toFixed(2));",
+                  "pm.collectionVariables.set('_pecaEstoque', Math.floor(Math.random()*50 + 5));",
+                  "pm.collectionVariables.set('_pecaCodigo',  peca.codigo + '-' + ts.toString().slice(-6));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Peça criada (201)', () => {",
+                  "    pm.response.to.have.status(201);",
+                  "    const j = pm.response.json();",
+                  "    pm.collectionVariables.set('pecaId', j.id);",
+                  "    console.log('pecaId=' + j.id + ' | nome=' + j.nome);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nome\": \"{{_pecaNome}}\",\n    \"descricao\": \"Peça de reposição automotiva\",\n    \"precoUnitario\": {{_pecaPreco}},\n    \"quantidadeEstoque\": {{_pecaEstoque}},\n    \"codigoReferencia\": \"{{_pecaCodigo}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/pecas",
+              "host": ["{{base_url}}"],
+              "path": ["api", "pecas"]
+            }
+          }
+        },
+        {
+          "name": "Listar Peças",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/pecas",
+              "host": ["{{base_url}}"],
+              "path": ["api", "pecas"]
+            }
+          }
+        },
+        {
+          "name": "Buscar Peça por ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/pecas/{{pecaId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "pecas", "{{pecaId}}"]
+            }
+          }
+        },
+        {
+          "name": "Atualizar Estoque da Peça",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"quantidade\": 100\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/pecas/{{pecaId}}/estoque",
+              "host": ["{{base_url}}"],
+              "path": ["api", "pecas", "{{pecaId}}", "estoque"]
+            }
+          }
+        },
+        {
+          "name": "Atualizar Peça",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nome\": \"{{_pecaNome}} Premium\",\n    \"descricao\": \"Versão premium da peça\",\n    \"precoUnitario\": {{_pecaPreco}},\n    \"quantidadeEstoque\": {{_pecaEstoque}},\n    \"codigoReferencia\": \"{{_pecaCodigo}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/pecas/{{pecaId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "pecas", "{{pecaId}}"]
+            }
+          }
+        },
+        {
+          "name": "Desativar Peça",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/pecas/{{pecaId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "pecas", "{{pecaId}}"]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Serviços",
+      "item": [
+        {
+          "name": "Criar Serviço: salva servicoId",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const catalogo = [",
+                  "    { nome: 'Troca de Óleo',              tempo: 30  },",
+                  "    { nome: 'Alinhamento e Balanceamento', tempo: 60  },",
+                  "    { nome: 'Revisão dos Freios',          tempo: 90  },",
+                  "    { nome: 'Troca de Correia Dentada',    tempo: 120 },",
+                  "    { nome: 'Limpeza de Injetores',        tempo: 45  },",
+                  "    { nome: 'Diagnóstico Eletrônico',      tempo: 30  },",
+                  "    { nome: 'Troca de Amortecedores',      tempo: 150 },",
+                  "    { nome: 'Revisão Completa 10.000km',   tempo: 180 },",
+                  "    { nome: 'Troca de Pastilhas de Freio', tempo: 60  },",
+                  "    { nome: 'Higienização do Ar-Cond.',    tempo: 45  }",
+                  "];",
+                  "const ts  = Date.now();",
+                  "const srv = catalogo[Math.floor(Math.random()*catalogo.length)];",
+                  "pm.collectionVariables.set('_servicoNome',  srv.nome + ' #' + ts.toString().slice(-4));",
+                  "pm.collectionVariables.set('_servicoTempo', srv.tempo);",
+                  "pm.collectionVariables.set('_servicoPreco', (Math.random()*300 + 50).toFixed(2));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Serviço criado (201)', () => {",
+                  "    pm.response.to.have.status(201);",
+                  "    const j = pm.response.json();",
+                  "    pm.collectionVariables.set('servicoId', j.id);",
+                  "    console.log('servicoId=' + j.id + ' | nome=' + j.nome);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nome\": \"{{_servicoNome}}\",\n    \"descricao\": \"Serviço realizado por técnico especializado\",\n    \"preco\": {{_servicoPreco}},\n    \"tempoEstimadoMinutos\": {{_servicoTempo}}\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/servicos",
+              "host": ["{{base_url}}"],
+              "path": ["api", "servicos"]
+            }
+          }
+        },
+        {
+          "name": "Listar Serviços",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/servicos",
+              "host": ["{{base_url}}"],
+              "path": ["api", "servicos"]
+            }
+          }
+        },
+        {
+          "name": "Buscar Serviço por ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/servicos/{{servicoId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "servicos", "{{servicoId}}"]
+            }
+          }
+        },
+        {
+          "name": "Atualizar Serviço",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nome\": \"{{_servicoNome}} Premium\",\n    \"descricao\": \"Versão premium do serviço com garantia\",\n    \"preco\": {{_servicoPreco}},\n    \"tempoEstimadoMinutos\": {{_servicoTempo}}\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/servicos/{{servicoId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "servicos", "{{servicoId}}"]
+            }
+          }
+        },
+        {
+          "name": "Deletar Serviço",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/servicos/{{servicoId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "servicos", "{{servicoId}}"]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Ordens de Serviço",
+      "description": "Execute os requests nesta ordem para o fluxo completo:\nCriar → Iniciar Diagnóstico → Adicionar Itens → Gerar Orçamento → Aprovar → Finalizar → Entregar",
+      "item": [
+        {
+          "name": "01 Criar OS: salva osId",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const problemas = [",
+                  "    'Motor falhando ao acelerar',",
+                  "    'Barulho ao frear',",
+                  "    'Luz de injeção acesa no painel',",
+                  "    'Ar condicionado não gela',",
+                  "    'Vibração no volante em alta velocidade',",
+                  "    'Vazamento de óleo no cárter',",
+                  "    'Carro não pega a frio',",
+                  "    'Suspensão fazendo barulho em lombadas',",
+                  "    'Consumo de combustível elevado',",
+                  "    'Fumaça azul ao arrancar'",
+                  "];",
+                  "pm.collectionVariables.set('_problema', problemas[Math.floor(Math.random()*problemas.length)]);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('OS criada (201) com status RECEBIDA', () => {",
+                  "    pm.response.to.have.status(201);",
+                  "    const j = pm.response.json();",
+                  "    pm.collectionVariables.set('osId', j.id);",
+                  "    pm.expect(j.status).to.eql('RECEBIDA');",
+                  "    console.log('osId=' + j.id + ' | numero=' + j.numero + ' | problema: ' + j.descricaoProblema);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"documentoCliente\": \"{{clienteDocumento}}\",\n    \"placaVeiculo\": \"{{veiculoPlaca}}\",\n    \"descricaoProblema\": \"{{_problema}}\",\n    \"observacoes\": \"Cliente relatou problema recorrente\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ordens-servico"]
+            }
+          }
+        },
+        {
+          "name": "02 Iniciar Diagnóstico (RECEBIDA -> EM_DIAGNOSTICO)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status EM_DIAGNOSTICO', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/iniciar-diagnostico",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ordens-servico", "{{osId}}", "iniciar-diagnostico"]
+            }
+          }
+        },
+        {
+          "name": "03 Adicionar Serviço à OS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Serviço adicionado (200)', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const j = pm.response.json();",
+                  "    pm.expect(j.itensServico.length).to.be.above(0);",
+                  "    console.log('Itens serviço: ' + j.itensServico.length + ' | valorTotal: ' + j.valorTotal);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"servicoId\": {{servicoId}},\n    \"quantidade\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/servicos",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ordens-servico", "{{osId}}", "servicos"]
+            }
+          }
+        },
+        {
+          "name": "04 Adicionar Peça à OS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Peça adicionada (200)', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const j = pm.response.json();",
+                  "    pm.expect(j.itensPeca.length).to.be.above(0);",
+                  "    console.log('Itens peça: ' + j.itensPeca.length + ' | valorTotal: ' + j.valorTotal);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"pecaId\": {{pecaId}},\n    \"quantidade\": 2\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/pecas",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ordens-servico", "{{osId}}", "pecas"]
+            }
+          }
+        },
+        {
+          "name": "05 Gerar Orçamento (EM_DIAGNOSTICO -> AGUARDANDO_APROVACAO)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status AGUARDANDO_APROVACAO', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const j = pm.response.json();",
+                  "    pm.expect(j.status).to.eql('AGUARDANDO_APROVACAO');",
+                  "    console.log('Orçamento gerado | valorTotal: ' + j.valorTotal);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/gerar-orcamento",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ordens-servico", "{{osId}}", "gerar-orcamento"]
+            }
+          }
+        },
+        {
+          "name": "06 Aprovar ou Rejeitar Orçamento via Body",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"aprovado\": true,\n    \"observacao\": \"Cliente aprovou o orçamento por telefone\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/aprovacao-orcamento",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ordens-servico", "{{osId}}", "aprovacao-orcamento"]
+            }
+          }
+        },
+        {
+          "name": "07 Finalizar OS (EM_EXECUCAO -> FINALIZADA)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status FINALIZADA', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().status).to.eql('FINALIZADA');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/finalizar",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ordens-servico", "{{osId}}", "finalizar"]
+            }
+          }
+        },
+        {
+          "name": "08 Entregar Veículo (FINALIZADA -> ENTREGUE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status ENTREGUE', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().status).to.eql('ENTREGUE');",
+                  "    console.log('Fluxo completo concluído!');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/entregar",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ordens-servico", "{{osId}}", "entregar"]
+            }
+          }
+        },
+        {
+          "name": "Listar OS Ativas (ordenadas por prioridade)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ordens-servico"]
+            }
+          }
+        },
+        {
+          "name": "Listar OS Ativas (endpoint dedicado)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/ativas",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ordens-servico", "ativas"]
+            }
+          }
+        },
+        {
+          "name": "Buscar OS por ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{osId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ordens-servico", "{{osId}}"]
+            }
+          }
+        },
+        {
+          "name": "Consultar Status (público — sem autenticação)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ordens-servico", "{{osId}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Listar OS por Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/status/RECEBIDA",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ordens-servico", "status", "RECEBIDA"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "RECEBIDA",
+                  "description": "Valores: RECEBIDA | EM_DIAGNOSTICO | AGUARDANDO_APROVACAO | EM_EXECUCAO | FINALIZADA | ENTREGUE",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Estatísticas das OS",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/estatisticas",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ordens-servico", "estatisticas"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

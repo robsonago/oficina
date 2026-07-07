@@ -19,6 +19,16 @@
 
 ---
 
+![Diagrama de Event Storming](images/event-storming.png)
+
+---
+
+> **Padrão Command (Fase 2):** Cada comando do Event Storming corresponde agora a um record Java
+> imutável em `domain/port/in/command/`. O Controller traduz o DTO HTTP para o Command antes de
+> chamar o caso de uso. Isso garante que o domínio nunca veja DTOs de infraestrutura.
+>
+> Exemplos: `AbrirOrdemServicoCommand`, `AdicionarItemServicoCommand`, `AprovacaoOrcamentoCommand`
+
 ## Fluxo 1 — Criação e Acompanhamento da Ordem de Serviço
 
 ### Fase: Recepção do Veículo
@@ -135,10 +145,27 @@
                       (volta para fase de diagnóstico)
 ```
 
+**Comando alternativo — endpoint unificado (Fase 2):**
+
+```
+🔵 AprovarOuRejeitarOrcamento  ← NOVO endpoint unificado
+      │ (body: { "aprovado": true/false, "observacao": "..." })
+      │ POST /api/ordens-servico/{id}/aprovacao-orcamento
+      │
+      ├── aprovado=true  → mesmo fluxo de AprovarOrcamento
+      └── aprovado=false → mesmo fluxo de RejeitarOrcamento
+```
+
 **Hotspots:**
 
 - ⚠️ Se o estoque for insuficiente no momento da aprovação → bloquear com erro 422
-- ⚠️ Canal de notificação ao cliente (MVP usa API pull; futuro: e-mail/SMS)
+
+**Política implementada (Fase 2):**
+
+```
+🟣 Política implementada: ao gerar orçamento → EmailPort.enviarNotificacaoOrcamento()
+   Adapter: JavaMailSenderEmailAdapter (produção) / NoOpEmailAdapter (testes/local)
+```
 
 ---
 
@@ -188,6 +215,32 @@
         "status": "Em Execução"
       }
 ```
+
+---
+
+### Modelo de Leitura: Listagem Prioritária de OS (Fase 2)
+
+```
+🟡 Técnico / Administrador
+      │
+      ▼
+🔵 ListarOrdensDeServico
+      │ (exclui FINALIZADA e ENTREGUE)
+      │ (ordena por prioridade: EM_EXECUCAO > AGUARDANDO_APROVACAO > EM_DIAGNOSTICO > RECEBIDA)
+      │ (mais antigas primeiro dentro de cada status)
+      │
+      ▼
+🟢 ListaDeOSPrioritizada
+      [
+        { id, numero, status: "EM_EXECUCAO",          dataAbertura, cliente, veiculo },
+        { id, numero, status: "AGUARDANDO_APROVACAO", dataAbertura, cliente, veiculo },
+        { id, numero, status: "EM_DIAGNOSTICO",       dataAbertura, cliente, veiculo },
+        { id, numero, status: "RECEBIDA",             dataAbertura, cliente, veiculo }
+      ]
+```
+
+**Regra:** OS com status `FINALIZADA` e `ENTREGUE` não aparecem na listagem padrão —
+são consultadas individualmente via `GET /api/ordens-servico/{id}`.
 
 ---
 
@@ -282,8 +335,8 @@
 | `OrdemDeServicoCriada` | CriarOrdemDeServico | RECEBIDA             |
 | `DiagnosticoIniciado`  | IniciarDiagnostico  | EM_DIAGNOSTICO       |
 | `OrcamentoGerado`      | GerarOrcamento      | AGUARDANDO_APROVACAO |
-| `OrcamentoAprovado`    | AprovarOrcamento    | EM_EXECUCAO          |
-| `OrcamentoRejeitado`   | RejeitarOrcamento   | EM_DIAGNOSTICO       |
+| `OrcamentoAprovado`    | AprovarOrcamento ou AprovarOuRejeitarOrcamento(aprovado=true)    | EM_EXECUCAO          |
+| `OrcamentoRejeitado`   | RejeitarOrcamento ou AprovarOuRejeitarOrcamento(aprovado=false)   | EM_DIAGNOSTICO       |
 | `ExecucaoFinalizada`   | FinalizarExecucao   | FINALIZADA           |
 | `VeiculoEntregue`      | EntregarVeiculo     | ENTREGUE             |
 

@@ -31,3 +31,18 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Segredos — nunca commitar ###
+.env.oficina
+.env
+
+### Terraform — state local contém segredos em texto plano ###
+infra/.terraform/
+infra/terraform.tfstate
+infra/terraform.tfstate.backup
+infra/oficina-config
+*.tfstate
+*.tfstate.backup
+
+### Documentos locais de análise ###
+atividades/

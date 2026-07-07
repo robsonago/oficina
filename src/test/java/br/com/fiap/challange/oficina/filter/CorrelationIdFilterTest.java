@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import br.com.fiap.challange.oficina.infrastructure.filter.CorrelationIdFilter;
 
 @ExtendWith(MockitoExtension.class)
 class CorrelationIdFilterTest {
@@ -48,7 +49,7 @@ class CorrelationIdFilterTest {
     void deveUsarCorrelationIdDoHeaderQuandoPresente() throws Exception {
         when(request.getHeader("X-Correlation-Id")).thenReturn("meu-id-externo");
 
-        filter.doFilterInternal(request, response, filterChain);
+        filter.doFilter(request, response, filterChain);
 
         verify(response).setHeader("X-Correlation-Id", "meu-id-externo");
         verify(filterChain).doFilter(request, response);
@@ -58,7 +59,7 @@ class CorrelationIdFilterTest {
     void deveGerarCorrelationIdParaUsuarioAnonimo() throws Exception {
         when(request.getHeader("X-Correlation-Id")).thenReturn(null);
 
-        filter.doFilterInternal(request, response, filterChain);
+        filter.doFilter(request, response, filterChain);
 
         verify(response).setHeader(eq("X-Correlation-Id"), anyString());
         verify(filterChain).doFilter(request, response);
@@ -73,7 +74,7 @@ class CorrelationIdFilterTest {
                 new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(auth);
 
-        filter.doFilterInternal(request, response, filterChain);
+        filter.doFilter(request, response, filterChain);
 
         verify(response).setHeader(eq("X-Correlation-Id"), anyString());
         verify(filterChain).doFilter(request, response);
@@ -83,7 +84,7 @@ class CorrelationIdFilterTest {
     void deveGerarCorrelationIdQuandoHeaderEstaBranco() throws Exception {
         when(request.getHeader("X-Correlation-Id")).thenReturn("   ");
 
-        filter.doFilterInternal(request, response, filterChain);
+        filter.doFilter(request, response, filterChain);
 
         verify(response).setHeader(eq("X-Correlation-Id"), anyString());
         verify(filterChain).doFilter(request, response);

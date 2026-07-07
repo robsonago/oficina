@@ -1,7 +1,7 @@
 package br.com.fiap.challange.oficina.dto.response;
 
-import br.com.fiap.challange.oficina.model.Cliente;
-import br.com.fiap.challange.oficina.model.enums.TipoDocumento;
+import br.com.fiap.challange.oficina.domain.model.Cliente;
+import br.com.fiap.challange.oficina.domain.model.enums.TipoDocumento;
 
 import java.time.LocalDateTime;
 

@@ -1,11 +1,10 @@
 package br.com.fiap.challange.oficina.service;
 
-import br.com.fiap.challange.oficina.dto.request.AtualizarEstoqueRequest;
-import br.com.fiap.challange.oficina.dto.request.PecaRequest;
-import br.com.fiap.challange.oficina.dto.response.PecaResponse;
-import br.com.fiap.challange.oficina.exception.RecursoNaoEncontradoException;
-import br.com.fiap.challange.oficina.model.Peca;
-import br.com.fiap.challange.oficina.repository.PecaRepository;
+import br.com.fiap.challange.oficina.domain.exception.RecursoNaoEncontradoException;
+import br.com.fiap.challange.oficina.domain.model.Peca;
+import br.com.fiap.challange.oficina.domain.port.in.command.AtualizarEstoqueCommand;
+import br.com.fiap.challange.oficina.domain.port.in.command.PecaCommand;
+import br.com.fiap.challange.oficina.domain.port.out.PecaRepositoryPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -20,25 +19,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import br.com.fiap.challange.oficina.application.usecase.PecaUseCase;
 
 @ExtendWith(MockitoExtension.class)
 class PecaServiceTest {
 
     @Mock
-    private PecaRepository pecaRepository;
+    private PecaRepositoryPort pecaRepository;
 
     @InjectMocks
-    private PecaService pecaService;
+    private PecaUseCase pecaService;
 
     @Test
     void deveCriarPecaComSucesso() {
-        PecaRequest request = new PecaRequest("Filtro de óleo", "Filtro Mann", new BigDecimal("45.90"), 10, "FILT-001");
+        PecaCommand command = new PecaCommand("Filtro de óleo", "Filtro Mann", new BigDecimal("45.90"), 10, "FILT-001");
         Peca pecaSalva = pecaComId(1L, "Filtro de óleo", 10);
         when(pecaRepository.save(any())).thenReturn(pecaSalva);
 
-        PecaResponse response = pecaService.criar(request);
-        assertThat(response.nome()).isEqualTo("Filtro de óleo");
-        assertThat(response.quantidadeEstoque()).isEqualTo(10);
+        Peca response = pecaService.criar(command);
+        assertThat(response.getNome()).isEqualTo("Filtro de óleo");
+        assertThat(response.getQuantidadeEstoque()).isEqualTo(10);
     }
 
     @Test
@@ -53,8 +53,8 @@ class PecaServiceTest {
     @Test
     void deveBuscarPecaPorId() {
         when(pecaRepository.findById(1L)).thenReturn(Optional.of(pecaComId(1L, "Filtro", 5)));
-        PecaResponse response = pecaService.buscarPorId(1L);
-        assertThat(response.id()).isEqualTo(1L);
+        Peca response = pecaService.buscarPorId(1L);
+        assertThat(response.getId()).isEqualTo(1L);
     }
 
     @Test
@@ -70,8 +70,8 @@ class PecaServiceTest {
         when(pecaRepository.findById(1L)).thenReturn(Optional.of(peca));
         when(pecaRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        PecaResponse response = pecaService.atualizarEstoque(1L, new AtualizarEstoqueRequest(50));
-        assertThat(response.quantidadeEstoque()).isEqualTo(50);
+        Peca response = pecaService.atualizarEstoque(1L, new AtualizarEstoqueCommand(50));
+        assertThat(response.getQuantidadeEstoque()).isEqualTo(50);
     }
 
     @Test
@@ -86,12 +86,12 @@ class PecaServiceTest {
 
     @Test
     void deveCriarPecaComEstoqueNulo() {
-        PecaRequest request = new PecaRequest("Filtro", "Desc", new BigDecimal("10.00"), null, "REF-01");
+        PecaCommand command = new PecaCommand("Filtro", "Desc", new BigDecimal("10.00"), null, "REF-01");
         Peca pecaSalva = pecaComId(1L, "Filtro", 0);
         when(pecaRepository.save(any())).thenReturn(pecaSalva);
 
-        PecaResponse response = pecaService.criar(request);
-        assertThat(response.quantidadeEstoque()).isEqualTo(0);
+        Peca response = pecaService.criar(command);
+        assertThat(response.getQuantidadeEstoque()).isEqualTo(0);
     }
 
     @Test
@@ -100,9 +100,9 @@ class PecaServiceTest {
         when(pecaRepository.findById(1L)).thenReturn(Optional.of(peca));
         when(pecaRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        PecaRequest request = new PecaRequest("Filtro Atualizado", "Desc", new BigDecimal("50.00"), null, "REF-01");
-        PecaResponse response = pecaService.atualizar(1L, request);
-        assertThat(response.quantidadeEstoque()).isEqualTo(5);
+        PecaCommand command = new PecaCommand("Filtro Atualizado", "Desc", new BigDecimal("50.00"), null, "REF-01");
+        Peca response = pecaService.atualizar(1L, command);
+        assertThat(response.getQuantidadeEstoque()).isEqualTo(5);
     }
 
     private Peca pecaComId(Long id, String nome, int estoque) {

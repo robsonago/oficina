@@ -1,9 +1,9 @@
 package br.com.fiap.challange.oficina.integration;
 
 import br.com.fiap.challange.oficina.dto.request.*;
-import br.com.fiap.challange.oficina.model.Usuario;
-import br.com.fiap.challange.oficina.repository.*;
-import br.com.fiap.challange.oficina.security.JwtService;
+import br.com.fiap.challange.oficina.domain.model.Usuario;
+
+import br.com.fiap.challange.oficina.infrastructure.security.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +25,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import br.com.fiap.challange.oficina.domain.port.out.OrdemServicoRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.VeiculoRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.ClienteRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.PecaRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.ServicoRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.out.UsuarioRepositoryPort;
+import br.com.fiap.challange.oficina.infrastructure.adapter.out.persistence.ItemServicoOSJpaRepository;
+import br.com.fiap.challange.oficina.infrastructure.adapter.out.persistence.ItemPecaOSJpaRepository;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -36,21 +44,21 @@ class OrdemServicoControllerIT {
     @Autowired
     ObjectMapper objectMapper;
     @Autowired
-    OrdemServicoRepository osRepository;
+    OrdemServicoRepositoryPort osRepository;
     @Autowired
-    ItemServicoOSRepository itemServicoOSRepository;
+    ItemServicoOSJpaRepository itemServicoOSRepository;
     @Autowired
-    ItemPecaOSRepository itemPecaOSRepository;
+    ItemPecaOSJpaRepository itemPecaOSRepository;
     @Autowired
-    VeiculoRepository veiculoRepository;
+    VeiculoRepositoryPort veiculoRepository;
     @Autowired
-    ClienteRepository clienteRepository;
+    ClienteRepositoryPort clienteRepository;
     @Autowired
-    UsuarioRepository usuarioRepository;
+    UsuarioRepositoryPort usuarioRepository;
     @Autowired
-    PecaRepository pecaRepository;
+    PecaRepositoryPort pecaRepository;
     @Autowired
-    ServicoRepository servicoRepository;
+    ServicoRepositoryPort servicoRepository;
     @Autowired
     JwtService jwtService;
     @Autowired
@@ -70,9 +78,7 @@ class OrdemServicoControllerIT {
                     .username("tecnico_it").password(passwordEncoder.encode("senha123"))
                     .role("TECNICO").ativo(true).build());
         }
-        UserDetails userDetails = new User("tecnico_it", "senha123",
-                List.of(new SimpleGrantedAuthority("ROLE_TECNICO")));
-        token = "Bearer " + jwtService.generateToken(userDetails);
+        token = "Bearer " + jwtService.generateToken("tecnico_it", "TECNICO");
 
         String clienteResult = mockMvc.perform(post("/api/clientes")
                         .header("Authorization", token)
@@ -139,8 +145,10 @@ class OrdemServicoControllerIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("AGUARDANDO_APROVACAO"));
 
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/aprovar")
-                        .header("Authorization", token))
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/aprovacao-orcamento")
+                        .header("Authorization", token)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"aprovado\": true}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("EM_EXECUCAO"));
 
@@ -165,8 +173,10 @@ class OrdemServicoControllerIT {
                         .header("Authorization", token))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/rejeitar")
-                        .header("Authorization", token))
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/aprovacao-orcamento")
+                        .header("Authorization", token)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"aprovado\": false}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("EM_DIAGNOSTICO"));
     }
@@ -203,6 +213,46 @@ class OrdemServicoControllerIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void deveListarOSAtivas() throws Exception {
+        mockMvc.perform(get("/api/ordens-servico/ativas")
+                        .header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].status").value("RECEBIDA"));
+    }
+
+    @Test
+    void deveAprovarOrcamentoViaEndpointUnificado() throws Exception {
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/iniciar-diagnostico")
+                .header("Authorization", token)).andExpect(status().isOk());
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/gerar-orcamento")
+                .header("Authorization", token)).andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/aprovacao-orcamento")
+                        .header("Authorization", token)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"aprovado\": true, \"observacao\": \"Cliente aprovou\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("EM_EXECUCAO"));
+    }
+
+    @Test
+    void deveRejeitarOrcamentoViaEndpointUnificado() throws Exception {
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/iniciar-diagnostico")
+                .header("Authorization", token)).andExpect(status().isOk());
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/gerar-orcamento")
+                .header("Authorization", token)).andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/aprovacao-orcamento")
+                        .header("Authorization", token)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"aprovado\": false, \"observacao\": \"Valor muito alto\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("EM_DIAGNOSTICO"));
     }
 
     @Test

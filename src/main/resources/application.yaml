@@ -18,6 +18,20 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_AUTH:false}
+          starttls:
+            enable: ${MAIL_STARTTLS:false}
+
+mail:
+  from: ${MAIL_FROM:oficina@localhost}
 
 jwt:
   secret: ${JWT_SECRET:bXlTdXBlclNlY3JldEtleUZvckpXVFN5c3RlbU9maWNpbmFNZWNhbmljYTIwMjQ=}
@@ -44,6 +58,9 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  health:
+    mail:
+      enabled: false
   info:
     env:
       enabled: true
@@ -51,8 +68,8 @@ management:
 info:
   app:
     name: Oficina Mecânica API
-    version: 1.0.0
-    description: Sistema Integrado de Atendimento e Execução de Serviços - MVP
+    version: 2.0.0
+    description: Sistema Integrado de Atendimento e Execução de Serviços - Fase 2
 
 logging:
   pattern:

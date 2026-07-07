@@ -1,6 +1,6 @@
 package br.com.fiap.challange.oficina.dto.response;
 
-import br.com.fiap.challange.oficina.model.ItemServicoOS;
+import br.com.fiap.challange.oficina.domain.model.ItemServicoOS;
 
 import java.math.BigDecimal;
 
