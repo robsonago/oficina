@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 
 @Slf4j
 @Component
-@ConditionalOnMissingBean(JavaMailSenderEmailAdapter.class)
+@ConditionalOnMissingBean({JavaMailSenderEmailAdapter.class, PubSubEmailAdapter.class})
 public class NoOpEmailAdapter implements EmailPort {
 
     @Override
