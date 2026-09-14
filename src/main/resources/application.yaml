@@ -53,7 +53,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,loggers
+        include: health,info,metrics,loggers,prometheus
       base-path: /actuator
   endpoint:
     health:
@@ -72,8 +72,6 @@ info:
     description: Sistema Integrado de Atendimento e Execução de Serviços - Fase 2
 
 logging:
-  pattern:
-    console: "%d{HH:mm:ss.SSS} %-5level [%X{correlationId:-no-id}] %logger{25} - %msg%n"
   level:
     br.com.fiap: INFO
     org.springframework.security: WARN
