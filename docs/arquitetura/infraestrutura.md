@@ -1,6 +1,16 @@
 # Especificação de Infraestrutura — Oficina Mecânica
 ## Fase 2 — Docker, Kubernetes, Terraform e CI/CD
 
+> **Nota:** este documento descreve o setup local baseado em `kind` (pastas
+> `infra/` e `k8s/`), que existiu neste repositório numa fase anterior do
+> projeto. Essas pastas foram removidas — a infraestrutura de Kubernetes e
+> Terraform agora vive nos repositórios dedicados
+> [`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s) e
+> [`oficina-infra-db`](https://github.com/robsonago/oficina-infra-db),
+> provisionando um ambiente GKE real. O conteúdo abaixo é mantido como
+> registro histórico da arquitetura local; para rodar a aplicação localmente
+> hoje, use o `docker-compose.yml` (seção 2).
+
 > Este documento descreve o que foi construído na infraestrutura do projeto, por que cada decisão
 > técnica foi tomada, e como executar e verificar cada parte funcionando na prática.
 

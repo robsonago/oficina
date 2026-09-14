@@ -1,6 +1,7 @@
 package br.com.fiap.challange.oficina.infrastructure.adapter.out.email;
 
 import br.com.fiap.challange.oficina.domain.port.out.EmailPort;
+import br.com.fiap.challange.oficina.infrastructure.metrics.NegocioMetrics;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.cloud.pubsub.v1.Publisher;
@@ -28,10 +29,13 @@ public class PubSubEmailAdapter implements EmailPort {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final Publisher publisher;
+    private final NegocioMetrics negocioMetrics;
 
     public PubSubEmailAdapter(@Value("${notifications.pubsub.project-id}") String projectId,
-                               @Value("${notifications.pubsub.topic}") String topic) throws Exception {
+                               @Value("${notifications.pubsub.topic}") String topic,
+                               NegocioMetrics negocioMetrics) throws Exception {
         this.publisher = Publisher.newBuilder(TopicName.of(projectId, topic)).build();
+        this.negocioMetrics = negocioMetrics;
     }
 
     @Override
@@ -56,6 +60,7 @@ public class PubSubEmailAdapter implements EmailPort {
                     .build();
         } catch (Exception e) {
             log.error("Falha ao serializar evento de notificação para={} OS={}: {}", destinatario, numeroOS, e.getMessage());
+            negocioMetrics.registrarErroIntegracao("pubsub");
             return;
         }
 
@@ -64,6 +69,7 @@ public class PubSubEmailAdapter implements EmailPort {
             log.info("Evento de notificação publicado para={} OS={}", destinatario, numeroOS);
         } catch (Exception e) {
             log.error("Falha ao publicar evento de notificação para={} OS={}: {}", destinatario, numeroOS, e.getMessage());
+            negocioMetrics.registrarErroIntegracao("pubsub");
         }
     }
 

@@ -115,27 +115,30 @@ context, benefícios aplicados) em [`docs/arquitetura/hexagonal.md`](docs/arquit
 
 - **Docker**: `Dockerfile` multi-stage (build com JDK, runtime com JRE, ~180MB) e `docker-compose.yml`
   para desenvolvimento local (app + Postgres + Mailpit).
-- **Kubernetes** (`/k8s`): manifestos de `Namespace`, `ConfigMap`, `Secret`, `Deployment`/`Service` do
-  Postgres, Mailpit e da aplicação, e um `HorizontalPodAutoscaler` (min 2 / max 5 réplicas, 70% CPU).
-- **Terraform** (`/infra`): 3 módulos (`cluster`, `database`, `application`) que provisionam o
-  ambiente inteiro — cluster kind, banco, Mailpit, aplicação e HPA — com um único `terraform apply`.
+- **Kubernetes**: cluster GKE, namespaces de homologação/produção e manifestos de
+  `Deployment`/`Service`/`HorizontalPodAutoscaler` (min 2 / max 5 réplicas, 70% CPU) no repositório
+  [`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s).
+- **Terraform**: infraestrutura de cluster/rede/gateway em `oficina-infra-k8s` e do banco gerenciado
+  (Cloud SQL) em [`oficina-infra-db`](https://github.com/robsonago/oficina-infra-db) — cada
+  repositório provisiona sua parte com um único `terraform apply`.
 
-Existem três formas independentes de subir o mesmo ambiente (script `kind-setup.sh`, Terraform local,
-ou o próprio pipeline de CI/CD) — ver [seção 7](#7-como-executar) e o detalhamento completo em
-[`docs/arquitetura/infraestrutura.md`](docs/arquitetura/infraestrutura.md).
+> As pastas `infra/` e `k8s/` que existiam neste repositório (setup local via `kind`) foram removidas;
+> o histórico desse setup fica registrado em
+> [`docs/arquitetura/infraestrutura.md`](docs/arquitetura/infraestrutura.md).
 
 ### 3.3 Fluxo de deploy (CI/CD)
 
 ![Diagrama do Pipeline de CI/CD](docs/arquitetura/images/infraestrutura-pipeline-cicd.png)
 
 A cada `git push` (qualquer branch) ou Pull Request para `main`, o workflow
-[`ci-cd.yml`](.github/workflows/ci-cd.yml) executa três jobs em sequência:
+[`ci-cd.yml`](.github/workflows/ci-cd.yml) executa:
 
 1. **Build e Testes** — `./mvnw verify` (compila e roda os testes automatizados).
 2. **Build e Push da Imagem Docker** — publica em `ghcr.io/<owner>/oficina-app` (só em push).
-3. **Deploy via Terraform** — sobe um cluster kind efêmero no próprio runner e executa
-   `terraform apply`, que provisiona cluster, banco, Mailpit e aplicação, seguido de um smoke test no
-   endpoint de health.
+
+O deploy em nuvem (GKE) é feito pelo pipeline de
+[`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s), a partir da imagem publicada
+aqui.
 
 ---
 
@@ -181,10 +184,9 @@ Glossário completo, bounded contexts, event storming e domain storytelling em
 | H2                | latest | Banco em memória para testes de integração                                    |
 | Mailpit           | latest | Servidor SMTP fake para testar notificações por e-mail sem envio real          |
 | Docker            | —      | Empacotamento da aplicação (multi-stage build)                                |
-| kind              | 0.23.0 | Cluster Kubernetes real dentro do Docker, sem depender de cloud               |
-| Kubernetes        | —      | Orquestração dos containers (Deployments, Services, HPA)                      |
-| Terraform         | ≥1.6   | Infraestrutura como Código — provisiona cluster, banco e aplicação            |
-| GitHub Actions    | —      | Pipeline de CI/CD — build, testes, imagem Docker e deploy                     |
+| Kubernetes (GKE)  | —      | Orquestração dos containers (Deployments, Services, HPA) — `oficina-infra-k8s` |
+| Terraform         | ≥1.6   | Infraestrutura como Código — cluster/gateway em `oficina-infra-k8s`, banco em `oficina-infra-db` |
+| GitHub Actions    | —      | Pipeline de CI/CD — build, testes e imagem Docker                             |
 
 **Por que PostgreSQL?** ACID compliance garante consistência nas transações de ordens de serviço;
 suporte nativo a tipos avançados; excelente desempenho em queries com JOINs; maturidade e suporte da
@@ -197,12 +199,11 @@ comunidade.
 | Ferramenta | Necessária para |
 |---|---|
 | Java 21+ e Maven 3.8+ | Rodar/compilar a aplicação sem Docker |
-| Docker e Docker Compose | Execução local (Opção A) e build da imagem |
-| [kind](https://kind.sigs.k8s.io/) v0.23.0 e `kubectl` | Deploy em Kubernetes local (Opção B) |
-| [Terraform](https://developer.hashicorp.com/terraform) ≥1.6 | Provisionamento via IaC (Opção C) |
+| Docker e Docker Compose | Execução local e build da imagem |
 
-Instruções de instalação por sistema operacional (macOS/Linux/Windows) em
-[`docs/arquitetura/infraestrutura.md`](docs/arquitetura/infraestrutura.md).
+Para provisionar/alterar a infraestrutura em nuvem, ver os pré-requisitos de
+[`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s) e
+[`oficina-infra-db`](https://github.com/robsonago/oficina-infra-db).
 
 ---
 
@@ -222,43 +223,17 @@ docker-compose --env-file .env.oficina up -d --build
 
 **Sem Docker:** suba o Postgres separadamente e rode `./mvnw spring-boot:run`.
 
-### 7.2 Deploy em Kubernetes (local, via `kind`)
+### 7.2 Deploy em nuvem (GKE)
 
-```bash
-./scripts/kind-setup.sh
-```
+O deploy em nuvem (cluster GKE, banco Cloud SQL, API Gateway) é provisionado pelos repositórios
+dedicados de infraestrutura, não a partir deste repositório:
 
-Cria o cluster kind, instala o `metrics-server`, builda a imagem e aplica os manifestos de `/k8s`
-(namespace, configmap, secret, banco, Mailpit, aplicação, HPA).
+- [`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s) — cluster, namespaces,
+  manifests da aplicação e API Gateway.
+- [`oficina-infra-db`](https://github.com/robsonago/oficina-infra-db) — Cloud SQL (Postgres
+  gerenciado).
 
-- API: http://localhost:30080 · Swagger UI: http://localhost:30080/swagger-ui.html · Mailpit:
-  http://localhost:30825
-
-```bash
-kubectl -n oficina get pods
-kubectl -n oficina get hpa
-```
-
-**Destruir:** `kind delete cluster --name oficina`
-
-### 7.3 Provisionamento da infraestrutura com Terraform
-
-```bash
-cd infra
-terraform init
-terraform plan
-terraform apply
-```
-
-Um único `terraform apply` cria o cluster kind, o `metrics-server`, o banco, o Mailpit, a aplicação e
-o HPA — builda a imagem localmente e carrega no cluster, sem depender de rede/GHCR. Ao final, o
-Terraform imprime as URLs de acesso. Para destruir: `terraform destroy`.
-
-> Não rode a Opção B e a Opção C ao mesmo tempo — ambas usam um cluster kind chamado `oficina`. Antes
-> de trocar entre elas, rode `kind delete cluster --name oficina`.
-
-Passo a passo completo (variáveis, o que cada módulo Terraform provisiona) em
-[`docs/arquitetura/infraestrutura.md`](docs/arquitetura/infraestrutura.md).
+Consulte o README de cada um para instruções de execução.
 
 ---
 
@@ -266,13 +241,14 @@ Passo a passo completo (variáveis, o que cada módulo Terraform provisiona) em
 
 O workflow [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml) roda automaticamente a cada
 `git push` (qualquer branch) e em Pull Requests para `main` — ver [seção 3.3](#33-fluxo-de-deploy-cicd)
-para o detalhamento dos três jobs.
+para o detalhamento dos jobs.
 
 ---
 
 ## 9. Documentação da API
 
-- **Swagger UI**: `http://localhost:8080/swagger-ui.html` (ou `:30080` via Kubernetes/Terraform)
+- **Swagger UI**: `http://localhost:8080/swagger-ui.html` (local) — link do ambiente em nuvem no
+  README de [`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s)
 - **Collection Postman completa**: [`collection/oficina-api.postman_collection.json`](collection/oficina-api.postman_collection.json)
 
 ---
@@ -393,11 +369,11 @@ um Postgres real.
 - Spring Security filtra todas as rotas administrativas
 - Análise de vulnerabilidades documentada em
   [`docs/vulnerabilidades/relatorio-vulnerabilidades.md`](docs/vulnerabilidades/relatorio-vulnerabilidades.md)
-- **Nota:** `k8s/secret.yaml` e `infra/variables.tf` têm senha do banco e `JWT_SECRET` em texto puro
-  versionados no Git de propósito, são defaults só para demonstração local (`kind`), nunca para
-  produção. Segredo de fato (credenciais de e-mail/produção) já fica fora do Git via `.env.oficina`
-  (`.gitignore`). Detalhes em [`docs/arquitetura/infraestrutura.md`](docs/arquitetura/infraestrutura.md)
-  (seção 3.3).
+- **Nota:** os defaults de `JWT_SECRET`/senha do banco em `application.yaml` são só para
+  desenvolvimento local, nunca para produção — em nuvem, esses valores vêm de Secrets do Kubernetes
+  populados a partir do Secret Manager (ver
+  [`oficina-infra-db`](https://github.com/robsonago/oficina-infra-db)). Segredo de fato (credenciais
+  de e-mail) fica fora do Git via `.env.oficina` (`.gitignore`).
 
 **Controle de estoque:** o estoque das peças é debitado automaticamente quando o cliente **aprova o
 orçamento** (transição para `EM_EXECUCAO`). Caso o estoque seja insuficiente, a aprovação é bloqueada
