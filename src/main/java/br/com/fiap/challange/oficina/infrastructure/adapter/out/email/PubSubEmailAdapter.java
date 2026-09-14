@@ -23,7 +23,7 @@ import java.math.BigDecimal;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "notifications.pubsub.topic")
+@ConditionalOnProperty(name = "notifications.email-provider", havingValue = "pubsub")
 public class PubSubEmailAdapter implements EmailPort {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

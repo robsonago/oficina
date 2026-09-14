@@ -33,6 +33,13 @@ spring:
 mail:
   from: ${MAIL_FROM:oficina@localhost}
 
+notifications:
+  # Escolhe o adapter de e-mail (EmailPort): "smtp" (síncrono, local/dev) ou
+  # "pubsub" (assíncrono, nuvem). Um valor explícito em vez de inferir pela
+  # presença de spring.mail.host, que sempre resolve para um default e não
+  # serve como sinal confiável de "SMTP está configurado de verdade".
+  email-provider: ${EMAIL_PROVIDER:noop}
+
 jwt:
   secret: ${JWT_SECRET:bXlTdXBlclNlY3JldEtleUZvckpXVFN5c3RlbU9maWNpbmFNZWNhbmljYTIwMjQ=}
   expiration: ${JWT_EXPIRATION:86400000}

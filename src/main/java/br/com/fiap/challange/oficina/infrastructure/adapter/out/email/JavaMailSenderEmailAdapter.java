@@ -16,7 +16,7 @@ import java.math.BigDecimal;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "spring.mail.host")
+@ConditionalOnProperty(name = "notifications.email-provider", havingValue = "smtp")
 public class JavaMailSenderEmailAdapter implements EmailPort {
 
     private final JavaMailSender mailSender;
