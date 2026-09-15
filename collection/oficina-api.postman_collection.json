@@ -2,7 +2,7 @@
   "info": {
     "name": "Oficina Mecânica",
     "_postman_id": "oficina-mecanica-fiap-fase2",
-    "description": "Collection com geração automática de dados em cada execução.\n\n- CPF matematicamente válido gerado no pre-request\n- Placa aleatória (formato antigo ou Mercosul)\n- IDs capturados automaticamente e reutilizados nos requests seguintes\n- Execute em ordem de cima para baixo para o fluxo completo\n\nCompatível com Postman (scripts ativos) e Insomnia (import funciona; scripts de geração automática são ignorados).\n\nAmbiente ativo: base_url já aponta para produção na GCP (Gateway). Troque base_url por {{gateway_homolog_url}} ou {{base_url_local}} para outros ambientes. As URLs de homolog/produção das Cloud Functions e do Gateway são estáveis entre redeploys (não mudam sozinhas).",
+    "description": "Collection com geração automática de dados em cada execução.\n\n- CPF matematicamente válido gerado no pre-request\n- Placa aleatória (formato antigo ou Mercosul)\n- IDs capturados automaticamente e reutilizados nos requests seguintes\n- Execute em ordem de cima para baixo para o fluxo completo\n\n**Zero setup manual**: a collection já vem com token e ambiente configurados. Ao importar, qualquer request (não precisa ser \"Login\" primeiro) autentica sozinho automaticamente (script de pre-request no nível da collection) se ainda não houver um token salvo — tanto o do funcionário (admin/admin123) quanto o do cliente (CPF, no request que demonstra token_cliente). clienteDocumento/osId já vêm preenchidos com registros reais que existem em produção, então dá pra rodar buscas/consultas direto, sem precisar criar nada antes.\n\nCompatível com Postman (scripts ativos) e Insomnia (import funciona; scripts de geração automática/auto-login são ignorados — nesse caso, rode Login manualmente primeiro).\n\nAmbiente ativo: base_url já aponta para produção na GCP (Gateway). Troque base_url por {{gateway_homolog_url}} ou {{base_url_local}} para outros ambientes. As URLs de homolog/produção das Cloud Functions e do Gateway são estáveis entre redeploys (não mudam sozinhas).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -18,22 +18,22 @@
     },
     {
       "key": "clienteId",
-      "value": "",
+      "value": "2",
       "type": "string"
     },
     {
       "key": "clienteDocumento",
-      "value": "",
+      "value": "52998224725",
       "type": "string"
     },
     {
       "key": "veiculoId",
-      "value": "",
+      "value": "1",
       "type": "string"
     },
     {
       "key": "veiculoPlaca",
-      "value": "",
+      "value": "TST1D23",
       "type": "string"
     },
     {
@@ -48,7 +48,7 @@
     },
     {
       "key": "osId",
-      "value": "",
+      "value": "1",
       "type": "string"
     },
     {
@@ -1422,7 +1422,7 @@
                 "{{auth_function_url}}"
               ]
             },
-            "description": "Troque {{auth_function_url}} por {{auth_function_homolog_url}} para testar contra homologação. Precisa de um clienteDocumento já cadastrado (rode \"Clientes > Criar Cliente\" antes) e ativo."
+            "description": "Troque {{auth_function_url}} por {{auth_function_homolog_url}} para testar contra homologação. clienteDocumento já vem preenchido com um cliente real que existe em produção — funciona direto, sem precisar criar nada antes. Se quiser testar com outro cliente, rode \"Clientes > Criar Cliente\" antes (ele sobrescreve clienteDocumento)."
           }
         },
         {
@@ -1451,10 +1451,74 @@
                 "{{osId}}"
               ]
             },
-            "description": "Demonstra o token do cliente (emitido pela Cloud Function, claim role=CLIENTE) sendo aceito pelos mesmos endpoints protegidos da aplicação principal. Rode o fluxo de \"Ordens de Servico\" antes para ter um osId valido."
-          }
+            "description": "Demonstra o token do cliente (emitido pela Cloud Function, claim role=CLIENTE) sendo aceito pelos mesmos endpoints protegidos da aplicação principal. osId já vem preenchido com uma OS real que existe em produção — funciona direto. Se rodar o fluxo de \"Ordens de Serviço\" antes, osId é sobrescrito com a OS recém-criada."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Autentica automaticamente como cliente (por CPF) se ainda nao tiver token_cliente.",
+                  "const jaTem = !!pm.collectionVariables.get('token_cliente');",
+                  "",
+                  "if (!jaTem) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.collectionVariables.get('auth_function_url'),",
+                  "        method: 'POST',",
+                  "        header: { 'Content-Type': 'application/json' },",
+                  "        body: {",
+                  "            mode: 'raw',",
+                  "            raw: JSON.stringify({ cpf: pm.collectionVariables.get('clienteDocumento') })",
+                  "        }",
+                  "    }, function (err, res) {",
+                  "        if (!err && res.code === 200) {",
+                  "            pm.collectionVariables.set('token_cliente', res.json().token);",
+                  "            console.log('Auto-login: token do cliente obtido automaticamente.');",
+                  "        } else {",
+                  "            console.log('Auto-login do cliente falhou: ' + (err || res.code + ' ' + res.text()));",
+                  "        }",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
         }
       ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Autentica automaticamente como funcionario (admin) se ainda nao tiver token.",
+          "// Roda antes de QUALQUER request da collection - nao precisa clicar em Login primeiro.",
+          "const jaTemToken = !!pm.collectionVariables.get('token');",
+          "const ehLogin = pm.request.url.toString().includes('/api/auth/login');",
+          "",
+          "if (!jaTemToken && !ehLogin) {",
+          "    pm.sendRequest({",
+          "        url: pm.collectionVariables.get('base_url') + '/api/auth/login',",
+          "        method: 'POST',",
+          "        header: { 'Content-Type': 'application/json' },",
+          "        body: {",
+          "            mode: 'raw',",
+          "            raw: JSON.stringify({ username: 'admin', password: 'admin123' })",
+          "        }",
+          "    }, function (err, res) {",
+          "        if (!err && res.code === 200) {",
+          "            pm.collectionVariables.set('token', res.json().token);",
+          "            console.log('Auto-login: token do funcionario obtido automaticamente.');",
+          "        } else {",
+          "            console.log('Auto-login falhou: ' + (err || res.code + ' ' + res.text()));",
+          "        }",
+          "    });",
+          "}"
+        ]
+      }
     }
   ]
 }
