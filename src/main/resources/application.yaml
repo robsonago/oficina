@@ -46,6 +46,13 @@ jwt:
 
 server:
   port: ${SERVER_PORT:8080}
+  # Em nuvem, o TLS termina no Load Balancer do Google — o tráfego LB→pod é
+  # HTTP puro. Sem isso, o Spring acha que toda requisição é HTTP (usa
+  # request.getScheme() cru) e o Swagger UI gera server URLs como
+  # "http://...", que o navegador bloqueia por mixed content numa página
+  # carregada via HTTPS. Isso faz o Spring confiar no X-Forwarded-Proto que
+  # o GCLB já envia.
+  forward-headers-strategy: framework
 
 springdoc:
   api-docs:
