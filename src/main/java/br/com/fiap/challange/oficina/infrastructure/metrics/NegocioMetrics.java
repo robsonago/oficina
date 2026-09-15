@@ -1,6 +1,7 @@
 package br.com.fiap.challange.oficina.infrastructure.metrics;
 
 import br.com.fiap.challange.oficina.domain.model.OrdemServico;
+import br.com.fiap.challange.oficina.domain.model.enums.StatusOS;
 import br.com.fiap.challange.oficina.domain.port.out.OrdemServicoRepositoryPort;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -29,9 +30,13 @@ public class NegocioMetrics {
                 .description("Ordens de serviço abertas no dia corrente")
                 .register(registry);
 
-        Gauge.builder("oficina.os.tempo_medio_execucao.minutos", this, NegocioMetrics::tempoMedioExecucao)
-                .description("Tempo médio (minutos) entre início e finalização das OS já finalizadas")
-                .register(registry);
+        for (StatusOS status : StatusOS.values()) {
+            Gauge.builder("oficina.os.tempo_medio_execucao.minutos", this,
+                            metrics -> metrics.tempoMedioExecucaoPorStatus(status))
+                    .tag("status", status.name())
+                    .description("Tempo médio (minutos) entre início e finalização das OS, por status")
+                    .register(registry);
+        }
     }
 
     public void registrarErroIntegracao(String integracao) {
@@ -45,10 +50,12 @@ public class NegocioMetrics {
                 .count();
     }
 
-    private double tempoMedioExecucao() {
-        List<OrdemServico> finalizadas = osRepository.findFinalizadasComTempo();
-        if (finalizadas.isEmpty()) return 0;
-        return finalizadas.stream()
+    private double tempoMedioExecucaoPorStatus(StatusOS status) {
+        List<OrdemServico> comTempo = osRepository.findByStatus(status).stream()
+                .filter(os -> os.getDataInicio() != null && os.getDataFinalizacao() != null)
+                .toList();
+        if (comTempo.isEmpty()) return 0;
+        return comTempo.stream()
                 .mapToLong(os -> ChronoUnit.MINUTES.between(os.getDataInicio(), os.getDataFinalizacao()))
                 .average().orElse(0);
     }
