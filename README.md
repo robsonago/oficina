@@ -1,13 +1,18 @@
 # Oficina Mecânica — Sistema Integrado de Atendimento
 
 Back-end do sistema de gestão de uma oficina mecânica, desenvolvido para o Tech Challenge da
-Pós-Tech SOAT (FIAP). Este repositório cobre as duas fases do projeto:
+Pós-Tech SOAT (FIAP). Este repositório cobre as três fases do projeto:
 
 - **Fase 1** — MVP: gestão de ordens de serviço, clientes, veículos e peças, com API REST em
   arquitetura MVC.
-- **Fase 2** (este documento) — evolução da aplicação para **Arquitetura Hexagonal**, com
-  containerização, orquestração via **Kubernetes**, provisionamento como código via **Terraform** e
-  pipeline de **CI/CD** completo, preparando o sistema para escalar em picos de demanda.
+- **Fase 2** — evolução da aplicação para **Arquitetura Hexagonal**, com containerização,
+  orquestração via **Kubernetes**, provisionamento como código via **Terraform** e pipeline de
+  **CI/CD**, preparando o sistema para escalar em picos de demanda.
+- **Fase 3** (este documento) — a aplicação passa a rodar em **nuvem real (GCP)**, atrás de um
+  **API Gateway**, com **autenticação de clientes por CPF via function serverless**, notificações
+  assíncronas via **Pub/Sub**, **observabilidade real** (New Relic: APM, dashboards, alertas,
+  uptime) e infraestrutura dividida em **4 repositórios** com CI/CD próprio cada um — ver
+  [seção 3.4](#34-os-4-repositórios-do-projeto).
 
 ---
 
@@ -16,6 +21,7 @@ Pós-Tech SOAT (FIAP). Este repositório cobre as duas fases do projeto:
 1. [Objetivos desta fase](#1-objetivos-desta-fase)
 2. [Documentação completa do projeto](#2-documentação-completa-do-projeto)
 3. [Arquitetura](#3-arquitetura)
+   - [3.4 Os 4 repositórios do projeto](#34-os-4-repositórios-do-projeto)
 4. [Modelagem de domínio (DDD)](#4-modelagem-de-domínio-ddd)
 5. [Tecnologias](#5-tecnologias)
 6. [Pré-requisitos](#6-pré-requisitos)
@@ -31,21 +37,30 @@ Pós-Tech SOAT (FIAP). Este repositório cobre as duas fases do projeto:
 
 ## 1. Objetivos desta fase
 
-Após a implantação do MVP (Fase 1), a oficina precisava reduzir riscos operacionais, automatizar o
-provisionamento e o deploy do ambiente, melhorar a organização do código e se preparar para suportar
-grandes volumes de ordens de serviço em horários de pico. A Fase 2 endereça isso com:
+A Fase 2 deixou a aplicação containerizada, orquestrada via Kubernetes e com CI/CD — mas ainda rodando
+num cluster local (`kind`). A Fase 3 eleva o projeto a um nível corporativo, saindo do ambiente local
+para uma **nuvem real (GCP)**, com a arquitetura agora distribuída em componentes independentes:
 
-- **Refatoração para Arquitetura Hexagonal** (Ports & Adapters), isolando o domínio de frameworks e
-  detalhes técnicos, com testes automatizados cobrindo os fluxos críticos.
-- **Containerização** completa via Docker (multi-stage build) e `docker-compose` para desenvolvimento
-  local.
-- **Orquestração via Kubernetes**: Deployments, Services, ConfigMaps/Secrets e um
-  `HorizontalPodAutoscaler` que escala a aplicação automaticamente por consumo de CPU.
-- **Infraestrutura como Código via Terraform**: um único `terraform apply` provisiona cluster, banco,
-  serviço de e-mail e aplicação — usado tanto localmente quanto pelo próprio pipeline de CI/CD.
-- **Pipeline de CI/CD** (GitHub Actions): compila, testa, publica a imagem Docker e faz o deploy
-  completo via Terraform a cada `git push`.
-- **Notificação por e-mail** e endpoint unificado de aprovação/rejeição de orçamento.
+- **API Gateway** (Google API Gateway) como porta de entrada pública única, na frente da aplicação.
+- **Autenticação de clientes por CPF via function serverless** (`oficina-auth-function`): o cliente da
+  oficina (diferente do funcionário, que usa usuário/senha) se autentica só com o CPF, sem senha — a
+  function valida o CPF, consulta o cliente no banco e emite um JWT compatível com o da aplicação
+  principal. Ver [RFC-003](docs/rfcs/003-estrategia-autenticacao.md).
+- **Notificações assíncronas via Pub/Sub**: a aplicação publica um evento em vez de mandar e-mail
+  diretamente; uma segunda function (`oficina-notification-function`) consome a fila e envia o e-mail.
+  Ver [ADR-001](docs/adrs/001-padrao-comunicacao-notificacoes.md).
+- **Banco de Dados Gerenciado** (Cloud SQL/PostgreSQL) no lugar do Postgres em container. Ver
+  [RFC-002](docs/rfcs/002-escolha-banco-de-dados.md).
+- **Observabilidade real** via New Relic: agente APM (latência, erros de transação), métricas de
+  CPU/memória do cluster, métricas de negócio customizadas, logs estruturados correlacionados,
+  dashboards, alertas e checagem de uptime — ver [seção 3.3](#33-observabilidade).
+- **4 repositórios independentes**, cada um com seu próprio pipeline de CI/CD e deploy automático para
+  homologação e produção — ver [seção 3.4](#34-os-4-repositórios-do-projeto).
+- **Documentação arquitetural formal**: diagrama de componentes, diagramas de sequência, RFCs e ADRs —
+  ver [seção 2](#2-documentação-completa-do-projeto).
+
+As decisões da Fase 2 que continuam válidas (Arquitetura Hexagonal, containerização, HPA) estão
+documentadas nas seções abaixo e em [`docs/arquitetura/`](docs/arquitetura/).
 
 ---
 
@@ -58,6 +73,10 @@ decisão técnica:
 |---|---|
 | [`docs/arquitetura/hexagonal.md`](docs/arquitetura/hexagonal.md) | Arquitetura Hexagonal: camadas, fluxo de uma requisição, tabela de ports/adapters por bounded context |
 | [`docs/arquitetura/infraestrutura.md`](docs/arquitetura/infraestrutura.md) | Docker, Kubernetes, Terraform e CI/CD — decisões técnicas e como executar cada parte |
+| [`docs/arquitetura/diagrama-componentes.md`](docs/arquitetura/diagrama-componentes.md) | Diagrama de componentes da Fase 3: gateway, app no GKE, functions, Cloud SQL, New Relic e como se conectam |
+| [`docs/arquitetura/diagrama-sequencia.md`](docs/arquitetura/diagrama-sequencia.md) | Diagramas de sequência: autenticação por CPF e abertura de uma ordem de serviço |
+| [`docs/rfcs/`](docs/rfcs/) | RFCs — propostas técnicas discutidas (nuvem, banco de dados, autenticação) |
+| [`docs/adrs/`](docs/adrs/) | ADRs — decisões de arquitetura já fechadas (comunicação assíncrona, HPA) |
 | [`docs/ddd/contextos-delimitados.md`](docs/ddd/contextos-delimitados.md) | Bounded contexts do domínio |
 | [`docs/ddd/agregados-e-entidades.md`](docs/ddd/agregados-e-entidades.md) | Agregados, entidades e objetos de valor |
 | [`docs/ddd/event-storming.md`](docs/ddd/event-storming.md) | Eventos de domínio, comandos, atores e políticas |
@@ -126,7 +145,37 @@ context, benefícios aplicados) em [`docs/arquitetura/hexagonal.md`](docs/arquit
 > o histórico desse setup fica registrado em
 > [`docs/arquitetura/infraestrutura.md`](docs/arquitetura/infraestrutura.md).
 
-### 3.3 Fluxo de deploy (CI/CD)
+### 3.3 Observabilidade
+
+Ferramenta: **New Relic** (ver [ADR](docs/adrs/) e justificativa de escolha). Três frentes:
+
+- **Agente APM** (Java, embutido no `Dockerfile`) — latência e erros de cada transação HTTP, sem
+  código extra na aplicação.
+- **Métricas de infraestrutura e negócio** — `nri-prometheus` (instalado no cluster via Helm, repo
+  `oficina-infra-k8s`) coleta CPU/memória dos pods e faz scrape do endpoint
+  `/actuator/prometheus`, que expõe métricas de negócio customizadas via Micrometer
+  (`NegocioMetrics`): volume diário de OS abertas, tempo médio de execução por status, e contagem de
+  erros de integração (e-mail/Pub-Sub).
+- **Alertas e uptime** — uma condição NRQL dispara quando qualquer chamada em
+  `/api/ordens-servico` retorna erro (`TransactionError`), notificando por e-mail; dois Synthetic
+  Monitors batem em `/actuator/health` de cada ambiente a cada 5 minutos.
+
+Três dashboards (Volume de OS, Tempo Médio de Execução por Status, Erros e Falhas de Integração) —
+configurados via API (NerdGraph) no repositório `oficina-infra-k8s`.
+
+### 3.4 Os 4 repositórios do projeto
+
+O projeto é dividido em 4 repositórios independentes, cada um com seu próprio pipeline de CI/CD e
+deploy automático (homologação a partir da branch `homolog`, produção a partir da `main`):
+
+| Repositório | Responsabilidade | Tecnologia principal |
+|---|---|---|
+| [`oficina`](https://github.com/robsonago/oficina) (este) | Aplicação principal (API REST) | Spring Boot / Java 21 |
+| [`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s) | Cluster GKE, namespaces, API Gateway, Pub/Sub, coletor New Relic | Terraform |
+| [`oficina-infra-db`](https://github.com/robsonago/oficina-infra-db) | Banco de Dados Gerenciado (Cloud SQL/PostgreSQL) | Terraform |
+| [`oficina-auth-function`](https://github.com/robsonago/oficina-auth-function) | Autenticação de clientes por CPF e disparo de notificações | Cloud Functions (Java 21) |
+
+### 3.5 Fluxo de deploy (CI/CD)
 
 ![Diagrama do Pipeline de CI/CD](docs/arquitetura/images/infraestrutura-pipeline-cicd.png)
 
@@ -240,7 +289,7 @@ Consulte o README de cada um para instruções de execução.
 ## 8. CI/CD
 
 O workflow [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml) roda automaticamente a cada
-`git push` (qualquer branch) e em Pull Requests para `main` — ver [seção 3.3](#33-fluxo-de-deploy-cicd)
+`git push` (qualquer branch) e em Pull Requests para `main` — ver [seção 3.5](#35-fluxo-de-deploy-cicd)
 para o detalhamento dos jobs.
 
 ---
@@ -250,6 +299,84 @@ para o detalhamento dos jobs.
 - **Swagger UI**: `http://localhost:8080/swagger-ui.html` (local) — link do ambiente em nuvem no
   README de [`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s)
 - **Collection Postman completa**: [`collection/oficina-api.postman_collection.json`](collection/oficina-api.postman_collection.json)
+- Tabela completa de endpoints: [seção 11](#11-endpoints-principais)
+
+### 9.1 Exemplo de uso ponta a ponta
+
+Fluxo completo — autenticar, cadastrar cliente e veículo, abrir uma OS e consultar o status — com
+requisição e resposta de cada chamada (local, `http://localhost:8080`):
+
+**1. Login (funcionário) e captura do token:**
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}' | jq -r .token)
+```
+
+**2. Cadastrar um cliente:**
+
+```bash
+curl -s -X POST http://localhost:8080/api/clientes \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"nome":"João Silva","documento":"52998224725","email":"joao@example.com","telefone":"11999999999"}'
+```
+
+```json
+{"id": 1, "nome": "João Silva", "documento": "529.982.247-25", "email": "joao@example.com", ...}
+```
+
+**3. Cadastrar um veículo para esse cliente:**
+
+```bash
+curl -s -X POST http://localhost:8080/api/veiculos \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"placa":"ABC1D23","modelo":"Onix","marca":"Chevrolet","ano":2022,"clienteId":1}'
+```
+
+**4. Abrir uma ordem de serviço** (identifica cliente e veículo por documento/placa, não por ID):
+
+```bash
+curl -s -X POST http://localhost:8080/api/ordens-servico \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"documentoCliente":"52998224725","placaVeiculo":"ABC1D23","descricaoProblema":"Barulho no motor"}'
+```
+
+```json
+{"id": 1, "numero": "OS-2026-A1B2C3D4", "status": "RECEBIDA", "statusDescricao": "Recebida", "valorTotal": 0, ...}
+```
+
+**5. Consultar status da OS — endpoint público, sem token (é o que o cliente usa pra acompanhar):**
+
+```bash
+curl -s http://localhost:8080/api/ordens-servico/1/status
+```
+
+```json
+{"status": "RECEBIDA", "ordemServicoId": "1"}
+```
+
+A partir daí, o fluxo segue pelos endpoints de [seção 11](#11-endpoints-principais): iniciar
+diagnóstico → gerar orçamento (dispara notificação) → aprovar/rejeitar → finalizar → entregar.
+
+### 9.2 Autenticação de clientes por CPF (Fase 3)
+
+Diferente do funcionário (usuário/senha, endpoint acima), o cliente final se autentica só com o CPF,
+através da function serverless `oficina-auth-function` (fora deste repositório, ver
+[RFC-003](docs/rfcs/003-estrategia-autenticacao.md)):
+
+```bash
+curl -s -X POST https://<url-da-cloud-function-oficina-auth> \
+  -H "Content-Type: application/json" \
+  -d '{"cpf":"52998224725"}'
+```
+
+A function valida o CPF, consulta o cliente no banco e devolve um JWT com a claim `role=CLIENTE`,
+aceito pelos mesmos endpoints protegidos desta aplicação (`JwtAuthenticationFilter` reconhece esse
+token sem passar pelo `UserDetailsService` de funcionários).
 
 ---
 
@@ -346,16 +473,39 @@ autenticação.
 
 ## 12. Testes
 
+### 12.1 Organização
+
+`src/test/java/.../oficina/` é dividido por tipo, refletindo a Arquitetura Hexagonal:
+
+| Pacote | O que testa | Estilo |
+|---|---|---|
+| `domain/` | Modelos e regras de domínio puras (`OrdemServico`, `StatusOS`, validadores) | Unitário, sem Spring |
+| `service/` | Casos de uso (`*UseCase`) | Unitário, com Mockito mockando os *ports* de saída |
+| `controller/` | Tratamento de erro dos controllers (`GlobalExceptionHandler`) | Unitário, sem Spring |
+| `security/` | `JwtService`, `JwtAuthenticationFilter` | Unitário |
+| `filter/` | `CorrelationIdFilter` | Unitário |
+| `integration/` (`*IT.java`) | Fluxo HTTP completo de cada controller, ponta a ponta | `@SpringBootTest` + `MockMvc`, banco H2 em memória via `@ActiveProfiles("test")` |
+
+Convenção de nomes: `*Test.java` para unitários, `*IT.java` para integração — ambos rodam juntos no
+mesmo `./mvnw test` (configurado no `maven-surefire-plugin` do `pom.xml`), não é preciso um comando
+separado para cada tipo.
+
+### 12.2 Como executar
+
 ```bash
-# Executar todos os testes (unitários + integração)
-./mvnw verify
+# Todos os testes (unitários + integração)
+./mvnw test
+
+# Só uma classe ou um pacote
+./mvnw test -Dtest=OrdemServicoUseCaseTest
+./mvnw test -Dtest='integration.*'
 
 # Relatório de cobertura (gerado em target/site/jacoco/index.html)
 ./mvnw test jacoco:report
 ```
 
-Testes de integração (`*IT.java`) usam H2 em memória via `@ActiveProfiles("test")`, sem depender de
-um Postgres real.
+Os testes de integração usam H2 em memória (perfil `test`), não dependem de um Postgres real nem de
+credenciais — rodam isolados, inclusive no pipeline de CI/CD.
 
 ---
 
