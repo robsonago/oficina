@@ -4,11 +4,15 @@ on:
   push:
     branches: ["**"]
   pull_request:
-    branches: [main]
+    branches: [main, homolog]
 
 env:
   IMAGE: ghcr.io/${{ github.repository_owner }}/oficina-app
-  CLUSTER_NAME: oficina
+  GCP_PROJECT_ID: oficina-501820
+  GCP_WORKLOAD_IDENTITY_PROVIDER: projects/863475645726/locations/global/workloadIdentityPools/github-actions/providers/github
+  GCP_SERVICE_ACCOUNT: github-actions-ci@oficina-501820.iam.gserviceaccount.com
+  GKE_CLUSTER: oficina-gke
+  GKE_ZONE: southamerica-east1-a
 
 jobs:
   # ─────────────────────────────────────────
@@ -51,7 +55,7 @@ jobs:
     name: Build e Push da Imagem Docker
     runs-on: ubuntu-latest
     needs: build-and-test
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/homolog')
     permissions:
       contents: read
       packages: write
@@ -73,72 +77,55 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.ref_name }}
             ${{ env.IMAGE }}:${{ github.sha }}
 
   # ─────────────────────────────────────────
-  # JOB 3 — Deploy no Kubernetes via Terraform (kind)
+  # JOB 3 — Deploy no GKE
+  # homolog -> namespace oficina-homolog · main -> namespace oficina-producao
   # ─────────────────────────────────────────
   deploy:
-    name: Deploy no Kubernetes (Terraform + kind)
+    name: Deploy no GKE
     runs-on: ubuntu-latest
     needs: docker-build-push
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/homolog')
     permissions:
       contents: read
-      packages: read
+      id-token: write
 
     steps:
-      - name: Checkout do código
-        uses: actions/checkout@v4
-
-      - name: Instalar kind
-        run: |
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
-          chmod +x ./kind
-          sudo mv ./kind /usr/local/bin/kind
-
-      - name: Instalar kubectl
-        uses: azure/setup-kubectl@v4
+      - name: Autenticar no GCP (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
         with:
-          version: 'v1.33.0'
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
 
-      - name: Instalar Terraform
-        uses: hashicorp/setup-terraform@v3
+      - name: Configurar gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Obter credenciais do cluster GKE
+        uses: google-github-actions/get-gke-credentials@v2
         with:
-          terraform_version: '1.6.6'
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GKE_ZONE }}
 
-      - name: Login no GHCR para pull da imagem
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-      - name: Terraform init
-        working-directory: infra
-        run: terraform init
-
-      - name: Terraform apply — cluster, banco, mailpit e aplicação
-        working-directory: infra
-        run: terraform apply -auto-approve
-        env:
-          TF_VAR_app_image: ${{ env.IMAGE }}:${{ github.sha }}
-          TF_VAR_build_local_image: "false"
-          TF_VAR_ghcr_username: ${{ github.actor }}
-          TF_VAR_ghcr_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Status dos pods
-        run: kubectl --context kind-${{ env.CLUSTER_NAME }} -n oficina get pods -o wide
-
-      - name: Status do HPA
-        run: kubectl --context kind-${{ env.CLUSTER_NAME }} -n oficina get hpa
-
-      - name: Smoke test — health check da API
+      - name: Definir namespace de destino
+        id: target
         run: |
-          kubectl --context kind-${{ env.CLUSTER_NAME }} -n oficina port-forward svc/oficina-app 8080:8080 &
-          sleep 8
-          curl -f http://localhost:8080/actuator/health | jq .
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "namespace=oficina-producao" >> "$GITHUB_OUTPUT"
+          else
+            echo "namespace=oficina-homolog" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Logs da aplicação (em caso de falha)
-        if: failure()
+      - name: Atualizar a imagem do Deployment
         run: |
-          kubectl --context kind-${{ env.CLUSTER_NAME }} -n oficina get events --sort-by='.lastTimestamp'
-          kubectl --context kind-${{ env.CLUSTER_NAME }} -n oficina logs -l app=oficina-app --tail=80 || true
-          kubectl --context kind-${{ env.CLUSTER_NAME }} -n oficina describe pods -l app=oficina-app || true
+          kubectl set image deployment/oficina-app \
+            oficina-app=${{ env.IMAGE }}:${{ github.sha }} \
+            -n ${{ steps.target.outputs.namespace }}
+
+      - name: Aguardar o rollout
+        run: |
+          kubectl rollout status deployment/oficina-app \
+            -n ${{ steps.target.outputs.namespace }} --timeout=300s

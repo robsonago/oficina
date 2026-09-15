@@ -65,6 +65,7 @@ services:
       MAIL_AUTH: ${MAIL_AUTH}
       MAIL_STARTTLS: ${MAIL_STARTTLS}
       MAIL_FROM: ${MAIL_FROM}
+      EMAIL_PROVIDER: smtp
     depends_on:
       postgres:
         condition: service_healthy

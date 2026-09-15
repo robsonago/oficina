@@ -1,6 +1,7 @@
 package br.com.fiap.challange.oficina.infrastructure.adapter.out.email;
 
 import br.com.fiap.challange.oficina.domain.port.out.EmailPort;
+import br.com.fiap.challange.oficina.infrastructure.metrics.NegocioMetrics;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,10 +16,11 @@ import java.math.BigDecimal;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "spring.mail.host")
+@ConditionalOnProperty(name = "notifications.email-provider", havingValue = "smtp")
 public class JavaMailSenderEmailAdapter implements EmailPort {
 
     private final JavaMailSender mailSender;
+    private final NegocioMetrics negocioMetrics;
 
     @Value("${mail.from:oficina@localhost}")
     private String remetente;
@@ -41,6 +43,7 @@ public class JavaMailSenderEmailAdapter implements EmailPort {
             log.info("E-mail de orçamento enviado de={} para={} OS={}", remetente, destinatario, numeroOS);
         } catch (Exception e) {
             log.error("Falha ao enviar e-mail para {} OS={}: {}", destinatario, numeroOS, e.getMessage());
+            negocioMetrics.registrarErroIntegracao("email");
         }
     }
 
