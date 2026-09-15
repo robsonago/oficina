@@ -19,6 +19,7 @@ Pós-Tech SOAT (FIAP). Este repositório cobre as três fases do projeto:
 ## Índice
 
 1. [Objetivos desta fase](#1-objetivos-desta-fase)
+   - [Como testar agora (resumo)](#como-testar-agora-resumo)
 2. [Documentação completa do projeto](#2-documentação-completa-do-projeto)
 3. [Arquitetura](#3-arquitetura)
    - [3.4 Os 4 repositórios do projeto](#34-os-4-repositórios-do-projeto)
@@ -62,6 +63,31 @@ para uma **nuvem real (GCP)**, com a arquitetura agora distribuída em component
 
 As decisões da Fase 2 que continuam válidas (Arquitetura Hexagonal, containerização, HPA) estão
 documentadas nas seções abaixo e em [`docs/arquitetura/`](docs/arquitetura/).
+
+### Como testar agora (resumo)
+
+A aplicação **já está publicada e rodando na nuvem** — dá pra testar sem instalar nada, só chamando
+os endpoints abaixo. Passo a passo completo na [seção 7.2](#72-executando-a-aplicação-já-publicada-na-gcp).
+
+```bash
+# Login como funcionário (usuário administrador padrão)
+TOKEN=$(curl -s -X POST https://oficina-gateway-producao-b0ob3sbi.ue.gateway.dev/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}' | python3 -c "import json,sys;print(json.load(sys.stdin)['token'])")
+
+# Chamada a um endpoint protegido, usando o token
+curl -s https://oficina-gateway-producao-b0ob3sbi.ue.gateway.dev/api/clientes \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Outras formas de testar, todas contra o mesmo ambiente:
+
+| Como | Onde | Detalhe |
+|---|---|---|
+| Swagger UI (interface visual) | `https://136.68.248.181.nip.io/swagger-ui.html` | [seção 7.2](#72-executando-a-aplicação-já-publicada-na-gcp) |
+| Postman (collection pronta, fluxo completo de uma OS) | [`collection/oficina-api.postman_collection.json`](collection/oficina-api.postman_collection.json) | [seção 9](#9-documentação-da-api) |
+| Autenticação de **cliente** por CPF (sem senha, via Cloud Function) | `https://oficina-auth-producao-rqwoyvcqha-rj.a.run.app` | [seção 9.2](#92-autenticação-de-clientes-por-cpf-fase-3) |
+| Observabilidade (dashboards, alertas, uptime) | New Relic, conta `8508624` | [seção 3.3](#33-observabilidade) |
 
 ---
 
