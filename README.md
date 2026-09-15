@@ -284,6 +284,12 @@ dedicados de infraestrutura, não a partir deste repositório:
 
 Consulte o README de cada um para instruções de execução.
 
+**Ambiente ativo (produção):** `https://oficina-gateway-producao-b0ob3sbi.ue.gateway.dev` — todas as
+rotas de [seção 11](#11-endpoints-principais) respondem por aí. Swagger UI e collection Postman não
+passam pelo Gateway (só as rotas de negócio estão no spec do Gateway); acesse-os direto pelo host do
+Ingress: `https://<producao_ip>.nip.io/swagger-ui.html` (IP muda a cada recriação da infra — ver
+[`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s) pelo IP atual).
+
 ---
 
 ## 8. CI/CD
@@ -296,8 +302,8 @@ para o detalhamento dos jobs.
 
 ## 9. Documentação da API
 
-- **Swagger UI**: `http://localhost:8080/swagger-ui.html` (local) — link do ambiente em nuvem no
-  README de [`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s)
+- **Swagger UI**: `http://localhost:8080/swagger-ui.html` (local) · em nuvem, direto pelo host do
+  Ingress (não pelo Gateway) — ver [seção 7.2](#72-deploy-em-nuvem-gke)
 - **Collection Postman completa**: [`collection/oficina-api.postman_collection.json`](collection/oficina-api.postman_collection.json)
 - Tabela completa de endpoints: [seção 11](#11-endpoints-principais)
 
