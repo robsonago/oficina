@@ -26,6 +26,7 @@ Pós-Tech SOAT (FIAP). Este repositório cobre as três fases do projeto:
 5. [Tecnologias](#5-tecnologias)
 6. [Pré-requisitos](#6-pré-requisitos)
 7. [Como executar](#7-como-executar)
+   - [7.2 Executando a aplicação já publicada na GCP](#72-executando-a-aplicação-já-publicada-na-gcp)
 8. [CI/CD](#8-cicd)
 9. [Documentação da API](#9-documentação-da-api)
 10. [Autenticação](#10-autenticação)
@@ -272,23 +273,43 @@ docker-compose --env-file .env.oficina up -d --build
 
 **Sem Docker:** suba o Postgres separadamente e rode `./mvnw spring-boot:run`.
 
-### 7.2 Deploy em nuvem (GKE)
+### 7.2 Executando a aplicação já publicada na GCP
 
-O deploy em nuvem (cluster GKE, banco Cloud SQL, API Gateway) é provisionado pelos repositórios
-dedicados de infraestrutura, não a partir deste repositório:
+A aplicação **já está publicada e rodando na nuvem** — não é preciso provisionar nada pra usá-la, só
+chamar os endpoints. O cluster GKE, banco Cloud SQL e API Gateway são provisionados pelos
+repositórios dedicados de infraestrutura ([`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s)
+e [`oficina-infra-db`](https://github.com/robsonago/oficina-infra-db) — consulte-os só se for
+recriar/alterar a infra do zero).
 
-- [`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s) — cluster, namespaces,
-  manifests da aplicação e API Gateway.
-- [`oficina-infra-db`](https://github.com/robsonago/oficina-infra-db) — Cloud SQL (Postgres
-  gerenciado).
+**Ambiente ativo (produção):**
 
-Consulte o README de cada um para instruções de execução.
+| O quê | URL |
+|---|---|
+| API (rotas de negócio, via Gateway) | `https://oficina-gateway-producao-b0ob3sbi.ue.gateway.dev` |
+| Swagger UI / `/api-docs` (via Ingress — não passa pelo Gateway) | `https://136.68.248.181.nip.io/swagger-ui.html` |
 
-**Ambiente ativo (produção):** `https://oficina-gateway-producao-b0ob3sbi.ue.gateway.dev` — todas as
-rotas de [seção 11](#11-endpoints-principais) respondem por aí. Swagger UI e collection Postman não
-passam pelo Gateway (só as rotas de negócio estão no spec do Gateway); acesse-os direto pelo host do
-Ingress: `https://<producao_ip>.nip.io/swagger-ui.html` (IP muda a cada recriação da infra — ver
-[`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s) pelo IP atual).
+> Os hosts acima mudam a cada recriação da infraestrutura (IP novo a cada `terraform apply` do
+> `oficina-infra-k8s`) — se algum link estiver fora do ar, confira o IP/URL atual no README de
+> [`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s#9-ambiente-ativo).
+
+**Teste rápido (login + chamada autenticada), contra o ambiente real:**
+
+```bash
+# 1. Login — usuário administrador padrão
+TOKEN=$(curl -s -X POST https://oficina-gateway-producao-b0ob3sbi.ue.gateway.dev/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}' | python3 -c "import json,sys;print(json.load(sys.stdin)['token'])")
+
+# 2. Chamada a um endpoint protegido, usando o token
+curl -s https://oficina-gateway-producao-b0ob3sbi.ue.gateway.dev/api/clientes \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Fluxo completo (criar cliente/veículo, abrir e conduzir uma OS até a entrega) na
+[seção 9.1](#91-exemplo-de-uso-ponta-a-ponta) — os mesmos exemplos funcionam trocando
+`http://localhost:8080` pela URL do Gateway acima. Um roteiro de teste mais completo (Swagger,
+Postman, autenticação por CPF, observabilidade) está em `atividades/Fase3/guia-apresentacao-professor.md`
+(anotação local, fora deste repositório).
 
 ---
 
@@ -303,7 +324,7 @@ para o detalhamento dos jobs.
 ## 9. Documentação da API
 
 - **Swagger UI**: `http://localhost:8080/swagger-ui.html` (local) · em nuvem, direto pelo host do
-  Ingress (não pelo Gateway) — ver [seção 7.2](#72-deploy-em-nuvem-gke)
+  Ingress (não pelo Gateway) — ver [seção 7.2](#72-executando-a-aplicação-já-publicada-na-gcp)
 - **Collection Postman completa**: [`collection/oficina-api.postman_collection.json`](collection/oficina-api.postman_collection.json)
 - Tabela completa de endpoints: [seção 11](#11-endpoints-principais)
 
