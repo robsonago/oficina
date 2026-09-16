@@ -30,6 +30,7 @@ Pós-Tech SOAT (FIAP). Este repositório cobre as três fases do projeto:
    - [7.2 Executando a aplicação já publicada na GCP](#72-executando-a-aplicação-já-publicada-na-gcp)
 8. [CI/CD](#8-cicd)
 9. [Documentação da API](#9-documentação-da-api)
+   - [9.3 Roteiro de teste completo via Postman](#93-roteiro-de-teste-completo-via-postman)
 10. [Autenticação](#10-autenticação)
 11. [Endpoints principais](#11-endpoints-principais)
 12. [Testes](#12-testes)
@@ -430,6 +431,58 @@ curl -s -X POST https://<url-da-cloud-function-oficina-auth> \
 A function valida o CPF, consulta o cliente no banco e devolve um JWT com a claim `role=CLIENTE`,
 aceito pelos mesmos endpoints protegidos desta aplicação (`JwtAuthenticationFilter` reconhece esse
 token sem passar pelo `UserDetailsService` de funcionários).
+
+### 9.3 Roteiro de teste completo via Postman
+
+A collection fica em [`collection/oficina-api.postman_collection.json`](collection/oficina-api.postman_collection.json)
+e é **totalmente automatizada** — não é preciso copiar token, ID de cliente, de OS ou de qualquer
+outra entidade manualmente em nenhum momento:
+
+- Um script de pré-requisição da própria collection faz **login automático** como administrador
+  (`admin`/`admin123`) antes da primeira chamada que exige autenticação, caso ainda não exista um
+  token salvo.
+- Toda requisição de criação (cliente, veículo, peça, serviço, ordem de serviço) **salva o ID
+  retornado numa variável da collection**, reaproveitada automaticamente pelas requisições
+  seguintes que dependem dele.
+- A variável `base_url` já aponta para o ambiente de produção na nuvem (`gateway_producao_url`) —
+  contra o mesmo ambiente descrito na [seção 7.2](#72-executando-a-aplicação-já-publicada-na-gcp).
+  Para testar contra o ambiente local, troque `base_url` por `{{base_url_local}}` nas variáveis da
+  collection.
+
+**Passo a passo:** basta importar a collection no Postman e executar as requisições abaixo, na
+ordem, uma de cada vez (botão *Send*). Cada uma já está numerada dentro da pasta correspondente:
+
+1. **Login** — `Auth > Login: salva token`. Pode pular direto para o passo 2: o login acontece
+   sozinho na primeira chamada protegida, via script de pré-requisição.
+2. **Cadastrar um cliente** — `Clientes > Criar Cliente`. Salva `clienteId` e `clienteDocumento`.
+3. **Cadastrar um veículo para esse cliente** — `Veículos > Criar Veículo`. Salva `veiculoId` e
+   `veiculoPlaca`; necessário porque a abertura da OS identifica o veículo pela placa.
+4. **Cadastrar uma peça** — `Peças > Criar Peça`. Salva `pecaId` e define o estoque inicial.
+5. **Cadastrar um serviço** — `Serviços > Criar Serviço`. Salva `servicoId`.
+6. **Abrir a ordem de serviço** — `Ordens de Serviço > 01 Criar OS`. Identifica cliente e veículo
+   pelo documento/placa salvos acima, não por ID. Salva `osId`. Status inicial: `RECEBIDA`.
+7. **Iniciar o diagnóstico** — `02 Iniciar Diagnóstico`. `RECEBIDA → EM_DIAGNOSTICO`.
+8. **Adicionar o serviço à OS** — `03 Adicionar Serviço à OS`. Usa o `servicoId` do passo 5.
+9. **Adicionar a peça à OS** — `04 Adicionar Peça à OS`. Usa o `pecaId` do passo 4.
+10. **Gerar o orçamento** — `05 Gerar Orçamento`. Soma peças + serviços da OS,
+    `EM_DIAGNOSTICO → AGUARDANDO_APROVACAO`, dispara a notificação assíncrona (Pub/Sub).
+11. **Aprovar o orçamento** — `06 Aprovar ou Rejeitar Orçamento via Body`, com o corpo
+    `{"aprovado": true}`. Debita o estoque da peça e muda `AGUARDANDO_APROVACAO → EM_EXECUCAO`.
+    (Enviar `{"aprovado": false}` rejeita e volta a OS para `EM_DIAGNOSTICO`.)
+12. **Finalizar a OS** — `07 Finalizar OS`. `EM_EXECUCAO → FINALIZADA`.
+13. **Entregar o veículo** — `08 Entregar Veículo`. `FINALIZADA → ENTREGUE`, último status do
+    fluxo.
+
+**Consultando como cliente (sem crachá de funcionário):**
+
+14. **Consultar o status da OS** — `Consultar Status (público — sem autenticação)`. Pode ser
+    chamado a qualquer momento entre os passos 6 e 13, sem token nenhum — é o endpoint que o
+    cliente final usa para acompanhar a própria OS.
+15. **Autenticar como cliente por CPF** (opcional) — pasta `Autenticação do Cliente por CPF
+    (oficina-auth-function)`, requisição `Autenticar por CPF`. Chama a function serverless com o
+    `clienteDocumento` salvo no passo 2 e guarda o token do cliente em `token_cliente`. Em seguida,
+    rode `Consultar OS autenticado como cliente` para ver a mesma OS usando esse token — prova que
+    o endpoint aceita tanto o token de funcionário quanto o de cliente.
 
 ---
 
