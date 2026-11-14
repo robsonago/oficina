@@ -194,3 +194,30 @@ persistência e serviços externos apenas através dos Output Ports. O Domain en
 (transições de status, cálculo de orçamento) e nunca depende da infraestrutura.
 
 Para mais detalhes sobre a arquitetura, consulte [docs/arquitetura/hexagonal.md](../arquitetura/hexagonal.md).
+
+---
+
+## Fase 4 — dos contextos aos microsserviços
+
+Com a divisão em microsserviços, os contextos acima passaram a ser distribuídos assim:
+
+| Microsserviço | Contextos | Observação |
+|---|---|---|
+| **OS Service** (`oficina`) | Clientes e Veículos, Gestão de OS, Catálogo de Serviços, Estoque de Peças, Identidade e Acesso | continua dono do agregado Ordem de Serviço e orquestra a saga |
+| **Billing Service** | **Orçamento e Pagamento** (novo contexto, antes implícito em Gestão de OS) | o orçamento deixa de ser só "o valor total da OS" e vira um agregado próprio, com aprovação e cobrança |
+| **Execution Service** | **Execução e Produção** (novo contexto, antes os status EM_EXECUCAO/FINALIZADA da OS) | a execução vira uma fila de trabalho com estados próprios (na fila, diagnóstico, reparo) |
+
+Novos termos da linguagem ubíqua:
+
+| Termo | Significado |
+|---|---|
+| **Saga** | sequência de passos distribuídos de uma OS (orçamento → aprovação → pagamento → execução) coordenada pelo OS Service |
+| **Compensação** | ação que desfaz um passo já concluído quando um passo seguinte falha (devolver peças, cancelar orçamento, estornar pagamento) |
+| **Cobrança** | preferência de pagamento criada no Mercado Pago quando o cliente aprova o orçamento |
+| **Estorno** | devolução do pagamento ao cliente quando a execução não pode ser concluída |
+| **Fila de execução** | OS pagas aguardando um mecânico, ordenadas por prioridade e chegada |
+
+Os contextos se integram por eventos (Pub/Sub) e cada um tem a sua própria cópia dos dados de que
+precisa — o Billing guarda nome/e-mail do cliente e os itens com o preço do momento do orçamento; o
+Execution guarda a descrição dos itens a executar. Detalhes em
+[`../arquitetura/arquitetura-fase4.md`](../arquitetura/arquitetura-fase4.md).
