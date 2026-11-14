@@ -2,24 +2,29 @@ package br.com.fiap.challange.oficina.infrastructure.adapter.in.rest;
 
 import br.com.fiap.challange.oficina.domain.model.enums.StatusOS;
 import br.com.fiap.challange.oficina.domain.port.in.OrdemServicoInputPort;
+import br.com.fiap.challange.oficina.domain.port.in.OrquestradorSagaInputPort;
+import br.com.fiap.challange.oficina.domain.port.out.AcompanhamentoExternoPort;
 import br.com.fiap.challange.oficina.domain.port.in.command.AbrirOrdemServicoCommand;
 import br.com.fiap.challange.oficina.domain.port.in.command.AdicionarItemPecaCommand;
 import br.com.fiap.challange.oficina.domain.port.in.command.AdicionarItemServicoCommand;
-import br.com.fiap.challange.oficina.domain.port.in.command.AprovacaoOrcamentoCommand;
-import br.com.fiap.challange.oficina.dto.request.AprovacaoOrcamentoRequest;
 import br.com.fiap.challange.oficina.dto.request.ItemPecaRequest;
 import br.com.fiap.challange.oficina.dto.request.ItemServicoRequest;
 import br.com.fiap.challange.oficina.dto.request.OrdemServicoRequest;
+import br.com.fiap.challange.oficina.dto.response.AcompanhamentoResponse;
 import br.com.fiap.challange.oficina.dto.response.EstatisticasResponse;
+import br.com.fiap.challange.oficina.dto.response.HistoricoStatusResponse;
 import br.com.fiap.challange.oficina.dto.response.OrdemServicoResponse;
+import br.com.fiap.challange.oficina.dto.response.SagaResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +35,8 @@ import java.util.Map;
 public class OrdemServicoController {
 
     private final OrdemServicoInputPort osUseCase;
+    private final OrquestradorSagaInputPort orquestrador;
+    private final AcompanhamentoExternoPort acompanhamentoExterno;
 
     @PostMapping
     @Operation(summary = "Criar nova Ordem de Serviço")
@@ -45,13 +52,13 @@ public class OrdemServicoController {
     }
 
     @GetMapping
-    @Operation(summary = "Listar OS ativas ordenadas por prioridade (EM_EXECUCAO > AGUARDANDO_APROVACAO > EM_DIAGNOSTICO > RECEBIDA), excluindo FINALIZADA e ENTREGUE")
+    @Operation(summary = "Listar OS ativas ordenadas por prioridade (da mais adiantada para a mais nova), excluindo FINALIZADA, ENTREGUE e CANCELADA")
     public ResponseEntity<List<OrdemServicoResponse>> listar() {
         return ResponseEntity.ok(osUseCase.listar().stream().map(OrdemServicoResponse::from).toList());
     }
 
     @GetMapping("/ativas")
-    @Operation(summary = "Listar OS ativas ordenadas por prioridade (EM_EXECUCAO > AGUARDANDO_APROVACAO > EM_DIAGNOSTICO > RECEBIDA), excluindo FINALIZADA e ENTREGUE")
+    @Operation(summary = "Listar OS ativas ordenadas por prioridade (da mais adiantada para a mais nova), excluindo FINALIZADA, ENTREGUE e CANCELADA")
     public ResponseEntity<List<OrdemServicoResponse>> listarAtivas() {
         return ResponseEntity.ok(osUseCase.listarAtivas().stream().map(OrdemServicoResponse::from).toList());
     }
@@ -78,34 +85,55 @@ public class OrdemServicoController {
 
     @PostMapping("/{id}/iniciar-diagnostico")
     @Operation(summary = "Iniciar diagnóstico (RECEBIDA → EM_DIAGNOSTICO)")
-    public ResponseEntity<OrdemServicoResponse> iniciarDiagnostico(@PathVariable Long id) {
-        return ResponseEntity.ok(OrdemServicoResponse.from(osUseCase.iniciarDiagnostico(id)));
+    public ResponseEntity<OrdemServicoResponse> iniciarDiagnostico(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(OrdemServicoResponse.from(osUseCase.iniciarDiagnostico(id, auth.getName())));
     }
 
     @PostMapping("/{id}/gerar-orcamento")
-    @Operation(summary = "Gerar orçamento e enviar para aprovação (EM_DIAGNOSTICO → AGUARDANDO_APROVACAO)")
-    public ResponseEntity<OrdemServicoResponse> gerarOrcamento(@PathVariable Long id) {
-        return ResponseEntity.ok(OrdemServicoResponse.from(osUseCase.gerarOrcamento(id)));
-    }
-
-    @PostMapping("/{id}/aprovacao-orcamento")
-    @Operation(summary = "Aprovar ou rejeitar orçamento via body (aprovado: true → EM_EXECUCAO, false → EM_DIAGNOSTICO)")
-    public ResponseEntity<OrdemServicoResponse> aprovacaoOrcamento(@PathVariable Long id,
-                                                                   @Valid @RequestBody AprovacaoOrcamentoRequest request) {
-        AprovacaoOrcamentoCommand command = new AprovacaoOrcamentoCommand(request.aprovado(), request.observacao());
-        return ResponseEntity.ok(OrdemServicoResponse.from(osUseCase.aprovarOuRejeitarOrcamento(id, command)));
-    }
-
-    @PostMapping("/{id}/finalizar")
-    @Operation(summary = "Finalizar execução dos serviços (EM_EXECUCAO → FINALIZADA)")
-    public ResponseEntity<OrdemServicoResponse> finalizar(@PathVariable Long id) {
-        return ResponseEntity.ok(OrdemServicoResponse.from(osUseCase.finalizar(id)));
+    @Operation(summary = "Inicia a saga da OS: pede o orçamento ao Billing Service (EM_DIAGNOSTICO → AGUARDANDO_ORCAMENTO). "
+            + "Aprovação, pagamento e execução acontecem nos outros serviços e voltam como eventos")
+    public ResponseEntity<OrdemServicoResponse> gerarOrcamento(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(OrdemServicoResponse.from(osUseCase.gerarOrcamento(id, auth.getName())));
     }
 
     @PostMapping("/{id}/entregar")
     @Operation(summary = "Registrar entrega do veículo (FINALIZADA → ENTREGUE)")
-    public ResponseEntity<OrdemServicoResponse> entregar(@PathVariable Long id) {
-        return ResponseEntity.ok(OrdemServicoResponse.from(osUseCase.entregar(id)));
+    public ResponseEntity<OrdemServicoResponse> entregar(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(OrdemServicoResponse.from(osUseCase.entregar(id, auth.getName())));
+    }
+
+    @GetMapping("/{id}/historico")
+    @Operation(summary = "Histórico de status da OS, com a origem de cada mudança (usuário ou serviço)")
+    public ResponseEntity<List<HistoricoStatusResponse>> historico(@PathVariable Long id) {
+        return ResponseEntity.ok(osUseCase.historico(id).stream().map(HistoricoStatusResponse::from).toList());
+    }
+
+    @GetMapping("/{id}/saga")
+    @Operation(summary = "Sagas da OS (mais recente primeiro), com cada passo e compensação executados")
+    public ResponseEntity<List<SagaResponse>> saga(@PathVariable Long id) {
+        osUseCase.buscarPorId(id);
+        return ResponseEntity.ok(orquestrador.sagasDaOrdemServico(id).stream().map(SagaResponse::from).toList());
+    }
+
+    @GetMapping("/{id}/acompanhamento")
+    @Operation(summary = "Visão consolidada: OS + histórico + saga + orçamento (Billing) + execução (Execution), "
+            + "consultados via REST com timeout e circuit breaker")
+    public ResponseEntity<AcompanhamentoResponse> acompanhamento(@PathVariable Long id) {
+        OrdemServicoResponse os = OrdemServicoResponse.from(osUseCase.buscarPorId(id));
+        List<String> indisponiveis = new ArrayList<>();
+        Object orcamentos = acompanhamentoExterno.orcamentos(id).orElseGet(() -> {
+            indisponiveis.add("billing-service");
+            return null;
+        });
+        Object execucoes = acompanhamentoExterno.execucoes(id).orElseGet(() -> {
+            indisponiveis.add("execution-service");
+            return null;
+        });
+        return ResponseEntity.ok(new AcompanhamentoResponse(os,
+                osUseCase.historico(id).stream().map(HistoricoStatusResponse::from).toList(),
+                orquestrador.sagasDaOrdemServico(id).stream().map(SagaResponse::from).toList(),
+                orcamentos, execucoes, indisponiveis));
     }
 
     @PostMapping("/{id}/servicos")
