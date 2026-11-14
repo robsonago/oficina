@@ -2,6 +2,7 @@ package br.com.fiap.challange.oficina.infrastructure.metrics;
 
 import br.com.fiap.challange.oficina.domain.model.OrdemServico;
 import br.com.fiap.challange.oficina.domain.model.enums.StatusOS;
+import br.com.fiap.challange.oficina.domain.port.out.MetricasSagaPort;
 import br.com.fiap.challange.oficina.domain.port.out.OrdemServicoRepositoryPort;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -15,11 +16,12 @@ import java.util.List;
 
 /**
  * Métricas de negócio expostas via Micrometer (/actuator/prometheus), para
- * os dashboards de volume/tempo médio/erros de integração.
+ * os dashboards de volume/tempo médio/erros de integração e da saga
+ * (iniciadas, concluídas e compensadas por motivo).
  */
 @Component
 @RequiredArgsConstructor
-public class NegocioMetrics {
+public class NegocioMetrics implements MetricasSagaPort {
 
     private final OrdemServicoRepositoryPort osRepository;
     private final MeterRegistry registry;
@@ -41,6 +43,21 @@ public class NegocioMetrics {
 
     public void registrarErroIntegracao(String integracao) {
         registry.counter("oficina.integracoes.erros", "integracao", integracao).increment();
+    }
+
+    @Override
+    public void sagaIniciada() {
+        registry.counter("oficina.saga.iniciadas").increment();
+    }
+
+    @Override
+    public void sagaConcluida() {
+        registry.counter("oficina.saga.concluidas").increment();
+    }
+
+    @Override
+    public void sagaCompensada(String motivo) {
+        registry.counter("oficina.saga.compensadas", "motivo", motivo).increment();
     }
 
     private double contarAbertasHoje() {

@@ -2,7 +2,7 @@
   "info": {
     "name": "Oficina Mecânica",
     "_postman_id": "oficina-mecanica-fiap-fase2",
-    "description": "Collection com geração automática de dados em cada execução.\n\n- CPF matematicamente válido gerado no pre-request\n- Placa aleatória (formato antigo ou Mercosul)\n- IDs capturados automaticamente e reutilizados nos requests seguintes\n- Execute em ordem de cima para baixo para o fluxo completo\n\n**Zero setup manual**: a collection já vem com token e ambiente configurados. Ao importar, qualquer request (não precisa ser \"Login\" primeiro) autentica sozinho automaticamente (script de pre-request no nível da collection) se ainda não houver um token salvo — tanto o do funcionário (admin/admin123) quanto o do cliente (CPF, no request que demonstra token_cliente). clienteDocumento/osId já vêm preenchidos com registros reais que existem em produção, então dá pra rodar buscas/consultas direto, sem precisar criar nada antes.\n\nCompatível com Postman (scripts ativos) e Insomnia (import funciona; scripts de geração automática/auto-login são ignorados — nesse caso, rode Login manualmente primeiro).\n\nAmbiente ativo: base_url já aponta para produção na GCP (Gateway). Troque base_url por {{gateway_homolog_url}} ou {{base_url_local}} para outros ambientes. As URLs de homolog/produção das Cloud Functions e do Gateway são estáveis entre redeploys (não mudam sozinhas).",
+    "description": "Collection com geração automática de dados em cada execução.\n\n- CPF matematicamente válido gerado no pre-request\n- Placa aleatória (formato antigo ou Mercosul)\n- IDs capturados automaticamente e reutilizados nos requests seguintes\n- Execute em ordem de cima para baixo para o fluxo completo\n\n**Zero setup manual**: a collection já vem com token e ambiente configurados. Ao importar, qualquer request (não precisa ser \"Login\" primeiro) autentica sozinho automaticamente (script de pre-request no nível da collection) se ainda não houver um token salvo — tanto o do funcionário (admin/admin123) quanto o do cliente (CPF, no request que demonstra token_cliente). clienteDocumento/osId já vêm preenchidos com registros reais que existem em produção, então dá pra rodar buscas/consultas direto, sem precisar criar nada antes.\n\nCompatível com Postman (scripts ativos) e Insomnia (import funciona; scripts de geração automática/auto-login são ignorados — nesse caso, rode Login manualmente primeiro).\n\nAmbiente ativo: base_url já aponta para produção na GCP (Gateway). Troque base_url por {{gateway_homolog_url}} ou {{base_url_local}} para outros ambientes. As URLs de homolog/produção das Cloud Functions e do Gateway são estáveis entre redeploys (não mudam sozinhas).\n\nFase 4: a OS passa por três microsserviços. Pelo API Gateway tudo usa {{base_url}}. Rodando local (docker compose), troque billing_url por {{billing_url_local}} e execucao_url por {{execucao_url_local}}. Ordem do fluxo completo: Ordens de Serviço 01–05 → Billing 01, 03, 04 → Execution 02, 04, 05, 06 → Ordens de Serviço 09. Entre um passo e outro a saga leva cerca de 1 segundo para avançar (mensageria assíncrona).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -85,6 +85,34 @@
       "key": "token_cliente",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "billing_url",
+      "value": "{{base_url}}"
+    },
+    {
+      "key": "execucao_url",
+      "value": "{{base_url}}"
+    },
+    {
+      "key": "billing_url_local",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "execucao_url_local",
+      "value": "http://localhost:8082"
+    },
+    {
+      "key": "orcamentoId",
+      "value": ""
+    },
+    {
+      "key": "execucaoId",
+      "value": ""
+    },
+    {
+      "key": "sagaId",
+      "value": ""
     }
   ],
   "auth": {
@@ -1123,41 +1151,7 @@
           }
         },
         {
-          "name": "05 Gerar Orçamento (EM_DIAGNOSTICO -> AGUARDANDO_APROVACAO)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status AGUARDANDO_APROVACAO', () => {",
-                  "    pm.response.to.have.status(200);",
-                  "    const j = pm.response.json();",
-                  "    pm.expect(j.status).to.eql('AGUARDANDO_APROVACAO');",
-                  "    console.log('Orçamento gerado | valorTotal: ' + j.valorTotal);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "url": {
-              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/gerar-orcamento",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "ordens-servico",
-                "{{osId}}",
-                "gerar-orcamento"
-              ]
-            }
-          }
-        },
-        {
-          "name": "06 Aprovar ou Rejeitar Orçamento via Body",
+          "name": "05 Gerar Orçamento — inicia a saga (EM_DIAGNOSTICO -> AGUARDANDO_ORCAMENTO)",
           "request": {
             "method": "POST",
             "header": [
@@ -1166,93 +1160,129 @@
                 "value": "application/json"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"aprovado\": true,\n    \"observacao\": \"Cliente aprovou o orçamento por telefone\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/gerar-orcamento"
             },
-            "url": {
-              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/aprovacao-orcamento",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "ordens-servico",
-                "{{osId}}",
-                "aprovacao-orcamento"
-              ]
-            }
-          }
-        },
-        {
-          "name": "07 Finalizar OS (EM_EXECUCAO -> FINALIZADA)",
+            "description": "Envia GERAR_ORCAMENTO ao Billing pelo Pub/Sub (outbox). Em ~1s a OS vai para AGUARDANDO_APROVACAO quando o Billing responder ORCAMENTO_GERADO."
+          },
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status FINALIZADA', () => {",
-                  "    pm.response.to.have.status(200);",
-                  "    pm.expect(pm.response.json().status).to.eql('FINALIZADA');",
-                  "});"
+                  "pm.test('status 202', () => pm.response.to.have.status(202));",
+                  "pm.test('saga iniciada', () => pm.expect(pm.response.json().status).to.eql('AGUARDANDO_ORCAMENTO'));"
                 ]
               }
             }
-          ],
-          "request": {
-            "method": "POST",
-            "url": {
-              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/finalizar",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "ordens-servico",
-                "{{osId}}",
-                "finalizar"
-              ]
-            }
-          }
+          ]
         },
         {
-          "name": "08 Entregar Veículo (FINALIZADA -> ENTREGUE)",
+          "name": "06 Saga da OS (etapa atual e passos)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/saga"
+            }
+          },
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status ENTREGUE', () => {",
-                  "    pm.response.to.have.status(200);",
-                  "    pm.expect(pm.response.json().status).to.eql('ENTREGUE');",
-                  "    console.log('Fluxo completo concluído!');",
-                  "});"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const s = pm.response.json()[0]; if (s) { pm.collectionVariables.set('sagaId', s.id); console.log('etapa da saga:', s.etapa); }"
                 ]
               }
             }
-          ],
+          ]
+        },
+        {
+          "name": "07 Histórico de status da OS",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/historico"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08 Acompanhamento consolidado (OS + Billing + Execution via REST)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/acompanhamento"
+            },
+            "description": "O OS Service consulta Billing e Execution por REST (timeout + circuit breaker). Se algum estiver fora, aparece em 'indisponiveis'."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "09 Entregar Veículo (FINALIZADA -> ENTREGUE)",
           "request": {
             "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": {
-              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/entregar",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "ordens-servico",
-                "{{osId}}",
-                "entregar"
-              ]
+              "raw": "{{base_url}}/api/ordens-servico/{{osId}}/entregar"
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Listar OS Ativas (ordenadas por prioridade)",
@@ -1367,6 +1397,393 @@
               ]
             }
           }
+        }
+      ]
+    },
+    {
+      "name": "Billing Service (orçamento e pagamento)",
+      "description": "Base: {{billing_url}}. Pelo API Gateway é a mesma URL do OS Service; local é http://localhost:8081.",
+      "item": [
+        {
+          "name": "01 Orçamentos da OS: salva orcamentoId",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{billing_url}}/api/orcamentos/ordem-servico/{{osId}}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const o = pm.response.json()[0]; if (o) pm.collectionVariables.set('orcamentoId', o.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02 Buscar Orçamento",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{billing_url}}/api/orcamentos/{{orcamentoId}}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03 Aprovar Orçamento (gera link de pagamento no Mercado Pago)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{billing_url}}/api/orcamentos/{{orcamentoId}}/aprovacao"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aprovado\": true,\n  \"observacao\": \"Pode fazer o serviço\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "console.log('link de pagamento:', pm.response.json().pagamento.linkPagamento);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03b Rejeitar Orçamento (OS volta para diagnóstico)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{billing_url}}/api/orcamentos/{{orcamentoId}}/aprovacao"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aprovado\": false,\n  \"observacao\": \"Valor acima do esperado\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04 Simular Pagamento Aprovado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{billing_url}}/api/pagamentos/simulacao/{{orcamentoId}}"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aprovado\": true\n}"
+            },
+            "description": "Faz o papel do webhook do Mercado Pago quando pagamento.provider=simulado."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04b Simular Pagamento Recusado (compensação: devolve peças e cancela orçamento)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{billing_url}}/api/pagamentos/simulacao/{{orcamentoId}}"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aprovado\": false\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05 Webhook do Mercado Pago (formato da notificação)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{billing_url}}/api/pagamentos/webhook?type=payment&data.id=123456789"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"payment.updated\",\n  \"type\": \"payment\",\n  \"data\": {\n    \"id\": \"123456789\"\n  }\n}"
+            },
+            "description": "Público (sem token). Com MERCADOPAGO_WEBHOOK_SECRET configurado exige o cabeçalho x-signature válido."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Execution Service (fila de execução)",
+      "description": "Base: {{execucao_url}}. Local: http://localhost:8082.",
+      "item": [
+        {
+          "name": "01 Fila de Execução",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{execucao_url}}/api/execucoes/fila"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02 Execução da OS: salva execucaoId",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{execucao_url}}/api/execucoes/ordem-servico/{{osId}}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const e = pm.response.json()[0]; if (e) pm.collectionVariables.set('execucaoId', e.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03 Pegar a Próxima da Fila (inicia diagnóstico)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{execucao_url}}/api/execucoes/proxima"
+            }
+          }
+        },
+        {
+          "name": "04 Iniciar Diagnóstico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{execucao_url}}/api/execucoes/{{execucaoId}}/diagnostico"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05 Iniciar Reparo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{execucao_url}}/api/execucoes/{{execucaoId}}/reparo"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06 Finalizar (OS -> FINALIZADA)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{execucao_url}}/api/execucoes/{{execucaoId}}/finalizar"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observacoes\": \"Serviço concluído e testado\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06b Registrar Falha (compensação: estorno do pagamento)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{execucao_url}}/api/execucoes/{{execucaoId}}/falha"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Peça com defeito de fábrica\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },

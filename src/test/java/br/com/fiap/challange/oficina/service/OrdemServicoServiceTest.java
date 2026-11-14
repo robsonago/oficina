@@ -10,17 +10,20 @@ import br.com.fiap.challange.oficina.domain.model.enums.TipoDocumento;
 import br.com.fiap.challange.oficina.domain.port.in.command.AbrirOrdemServicoCommand;
 import br.com.fiap.challange.oficina.domain.port.in.command.AdicionarItemPecaCommand;
 import br.com.fiap.challange.oficina.domain.port.in.command.AdicionarItemServicoCommand;
-import br.com.fiap.challange.oficina.domain.port.in.command.AprovacaoOrcamentoCommand;
 import br.com.fiap.challange.oficina.application.usecase.OrdemServicoUseCase;
 import br.com.fiap.challange.oficina.domain.port.out.OrdemServicoRepositoryPort;
 import br.com.fiap.challange.oficina.domain.port.out.ClienteRepositoryPort;
 import br.com.fiap.challange.oficina.domain.port.out.VeiculoRepositoryPort;
 import br.com.fiap.challange.oficina.domain.port.out.ServicoRepositoryPort;
 import br.com.fiap.challange.oficina.domain.port.out.PecaRepositoryPort;
-import br.com.fiap.challange.oficina.domain.port.out.EmailPort;
+import br.com.fiap.challange.oficina.domain.port.out.HistoricoStatusRepositoryPort;
+import br.com.fiap.challange.oficina.domain.port.in.OrquestradorSagaInputPort;
+import br.com.fiap.challange.oficina.application.usecase.EstoqueService;
+import br.com.fiap.challange.oficina.application.usecase.GestorStatusOS;
+import br.com.fiap.challange.oficina.domain.model.HistoricoStatusOS;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -33,6 +36,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,10 +53,19 @@ class OrdemServicoServiceTest {
     @Mock
     private PecaRepositoryPort pecaRepository;
     @Mock
-    private EmailPort emailPort;
+    private HistoricoStatusRepositoryPort historicoRepository;
+    @Mock
+    private OrquestradorSagaInputPort orquestrador;
 
-    @InjectMocks
     private OrdemServicoUseCase osService;
+
+    @BeforeEach
+    void setUp() {
+        // GestorStatusOS e EstoqueService são regras de domínio puras: usamos os reais, só com os ports mockados
+        osService = new OrdemServicoUseCase(osRepository, clienteRepository, veiculoRepository, servicoRepository,
+                pecaRepository, historicoRepository, new GestorStatusOS(osRepository, historicoRepository),
+                new EstoqueService(pecaRepository), orquestrador);
+    }
 
     @Test
     void deveCriarOrdemServicoComSucesso() {
@@ -145,7 +158,7 @@ class OrdemServicoServiceTest {
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
         when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServico response = osService.iniciarDiagnostico(1L);
+        OrdemServico response = osService.iniciarDiagnostico(1L, "mecanico");
         assertThat(response.getStatus()).isEqualTo(StatusOS.EM_DIAGNOSTICO);
     }
 
@@ -153,40 +166,11 @@ class OrdemServicoServiceTest {
     void deveGerarOrcamento() {
         OrdemServico os = osPadrao(StatusOS.EM_DIAGNOSTICO);
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
-        when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServico response = osService.gerarOrcamento(1L);
-        assertThat(response.getStatus()).isEqualTo(StatusOS.AGUARDANDO_APROVACAO);
-    }
+        assertThat(osService.gerarOrcamento(1L, "mecanico")).isSameAs(os);
 
-    @Test
-    void deveAprovarOrcamento() {
-        OrdemServico os = osPadrao(StatusOS.AGUARDANDO_APROVACAO);
-        when(osRepository.findById(1L)).thenReturn(Optional.of(os));
-        when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        OrdemServico response = osService.aprovarOrcamento(1L);
-        assertThat(response.getStatus()).isEqualTo(StatusOS.EM_EXECUCAO);
-    }
-
-    @Test
-    void deveRejeitarOrcamento() {
-        OrdemServico os = osPadrao(StatusOS.AGUARDANDO_APROVACAO);
-        when(osRepository.findById(1L)).thenReturn(Optional.of(os));
-        when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        OrdemServico response = osService.rejeitarOrcamento(1L);
-        assertThat(response.getStatus()).isEqualTo(StatusOS.EM_DIAGNOSTICO);
-    }
-
-    @Test
-    void deveFinalizar() {
-        OrdemServico os = osPadrao(StatusOS.EM_EXECUCAO);
-        when(osRepository.findById(1L)).thenReturn(Optional.of(os));
-        when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        OrdemServico response = osService.finalizar(1L);
-        assertThat(response.getStatus()).isEqualTo(StatusOS.FINALIZADA);
+        // quem conduz o orçamento agora é a saga
+        verify(orquestrador).iniciar(1L, "mecanico");
     }
 
     @Test
@@ -195,7 +179,7 @@ class OrdemServicoServiceTest {
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
         when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServico response = osService.entregar(1L);
+        OrdemServico response = osService.entregar(1L, "atendente");
         assertThat(response.getStatus()).isEqualTo(StatusOS.ENTREGUE);
     }
 
@@ -204,7 +188,7 @@ class OrdemServicoServiceTest {
         OrdemServico os = osPadrao(StatusOS.RECEBIDA);
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
 
-        assertThatThrownBy(() -> osService.finalizar(1L))
+        assertThatThrownBy(() -> osService.entregar(1L, "atendente"))
                 .isInstanceOf(TransicaoStatusInvalidaException.class);
     }
 
@@ -236,7 +220,8 @@ class OrdemServicoServiceTest {
 
     @Test
     void deveListarTodasAsOS() {
-        List<StatusOS> ativos = List.of(StatusOS.EM_EXECUCAO, StatusOS.AGUARDANDO_APROVACAO,
+        List<StatusOS> ativos = List.of(StatusOS.EM_EXECUCAO, StatusOS.AGUARDANDO_EXECUCAO,
+                StatusOS.AGUARDANDO_PAGAMENTO, StatusOS.AGUARDANDO_APROVACAO, StatusOS.AGUARDANDO_ORCAMENTO,
                 StatusOS.EM_DIAGNOSTICO, StatusOS.RECEBIDA);
         when(osRepository.findByStatusIn(ativos)).thenReturn(
                 List.of(osPadrao(StatusOS.RECEBIDA), osPadrao(StatusOS.EM_DIAGNOSTICO)));
@@ -345,24 +330,6 @@ class OrdemServicoServiceTest {
     }
 
     @Test
-    void deveAprovarOrcamentoComDebitoDeEstoque() {
-        Peca peca = pecaPadrao();
-        ItemPecaOS itemPeca = ItemPecaOS.builder()
-                .peca(peca).quantidade(3).precoUnitario(peca.getPrecoUnitario()).build();
-
-        OrdemServico os = osPadrao(StatusOS.AGUARDANDO_APROVACAO);
-        os.getItensPeca().add(itemPeca);
-
-        when(osRepository.findById(1L)).thenReturn(Optional.of(os));
-        when(pecaRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        OrdemServico response = osService.aprovarOrcamento(1L);
-        assertThat(response.getStatus()).isEqualTo(StatusOS.EM_EXECUCAO);
-        assertThat(peca.getQuantidadeEstoque()).isEqualTo(7);
-    }
-
-    @Test
     void deveCalcularEstatisticasComOSFinalizadas() {
         OrdemServico osF = osPadrao(StatusOS.FINALIZADA);
         osF.setDataInicio(LocalDateTime.now().minusHours(2));
@@ -377,30 +344,9 @@ class OrdemServicoServiceTest {
     }
 
     @Test
-    void deveAprovarOrcamentoViaEndpointUnificado() {
-        OrdemServico os = osPadrao(StatusOS.AGUARDANDO_APROVACAO);
-        when(osRepository.findById(1L)).thenReturn(Optional.of(os));
-        when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        OrdemServico response = osService.aprovarOuRejeitarOrcamento(1L,
-                new AprovacaoOrcamentoCommand(true, null));
-        assertThat(response.getStatus()).isEqualTo(StatusOS.EM_EXECUCAO);
-    }
-
-    @Test
-    void deveRejeitarOrcamentoViaEndpointUnificado() {
-        OrdemServico os = osPadrao(StatusOS.AGUARDANDO_APROVACAO);
-        when(osRepository.findById(1L)).thenReturn(Optional.of(os));
-        when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        OrdemServico response = osService.aprovarOuRejeitarOrcamento(1L,
-                new AprovacaoOrcamentoCommand(false, "Valor alto"));
-        assertThat(response.getStatus()).isEqualTo(StatusOS.EM_DIAGNOSTICO);
-    }
-
-    @Test
     void deveListarApenasOSAtivas() {
-        List<StatusOS> ativos = List.of(StatusOS.EM_EXECUCAO, StatusOS.AGUARDANDO_APROVACAO,
+        List<StatusOS> ativos = List.of(StatusOS.EM_EXECUCAO, StatusOS.AGUARDANDO_EXECUCAO,
+                StatusOS.AGUARDANDO_PAGAMENTO, StatusOS.AGUARDANDO_APROVACAO, StatusOS.AGUARDANDO_ORCAMENTO,
                 StatusOS.EM_DIAGNOSTICO, StatusOS.RECEBIDA);
         OrdemServico osExecucao = osPadrao(StatusOS.EM_EXECUCAO);
         OrdemServico osRecebida = osPadrao(StatusOS.RECEBIDA);
@@ -414,7 +360,8 @@ class OrdemServicoServiceTest {
 
     @Test
     void deveOrdenarOSAtivasPorPrioridadeDeQuatroNiveisComDesempatePorDataAbertura() {
-        List<StatusOS> ativos = List.of(StatusOS.EM_EXECUCAO, StatusOS.AGUARDANDO_APROVACAO,
+        List<StatusOS> ativos = List.of(StatusOS.EM_EXECUCAO, StatusOS.AGUARDANDO_EXECUCAO,
+                StatusOS.AGUARDANDO_PAGAMENTO, StatusOS.AGUARDANDO_APROVACAO, StatusOS.AGUARDANDO_ORCAMENTO,
                 StatusOS.EM_DIAGNOSTICO, StatusOS.RECEBIDA);
 
         LocalDateTime agora = LocalDateTime.now();
@@ -447,19 +394,25 @@ class OrdemServicoServiceTest {
     }
 
     @Test
-    void deveEnviarEmailAoGerarOrcamento() {
-        OrdemServico os = osPadrao(StatusOS.EM_DIAGNOSTICO);
-        os.getCliente().setEmail("cliente@email.com");
+    void deveRegistrarHistoricoAoMudarStatus() {
+        OrdemServico os = osPadrao(StatusOS.RECEBIDA);
         when(osRepository.findById(1L)).thenReturn(Optional.of(os));
         when(osRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        osService.gerarOrcamento(1L);
+        osService.iniciarDiagnostico(1L, "mecanico");
 
-        org.mockito.Mockito.verify(emailPort).enviarNotificacaoOrcamento(
-                org.mockito.ArgumentMatchers.eq("cliente@email.com"),
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.any());
+        verify(historicoRepository).registrar(org.mockito.ArgumentMatchers.argThat(h ->
+                h.statusAnterior() == StatusOS.RECEBIDA && h.statusNovo() == StatusOS.EM_DIAGNOSTICO
+                        && "mecanico".equals(h.origem())));
+    }
+
+    @Test
+    void deveListarHistorico() {
+        when(osRepository.findById(1L)).thenReturn(Optional.of(osPadrao(StatusOS.RECEBIDA)));
+        when(historicoRepository.buscarPorOrdemServico(1L)).thenReturn(List.of(
+                new HistoricoStatusOS(1L, 1L, null, StatusOS.RECEBIDA, "atendimento", "OS aberta", LocalDateTime.now())));
+
+        assertThat(osService.historico(1L)).hasSize(1);
     }
 
     private OrdemServico osPadrao(StatusOS status) {

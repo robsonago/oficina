@@ -1,636 +1,334 @@
-# Oficina Mecânica — Sistema Integrado de Atendimento
+# Oficina Mecânica — OS Service
 
-Back-end do sistema de gestão de uma oficina mecânica, desenvolvido para o Tech Challenge da
-Pós-Tech SOAT (FIAP). Este repositório cobre as três fases do projeto:
+Back-end da oficina mecânica do Tech Challenge da Pós-Tech SOAT (FIAP).
 
-- **Fase 1** — MVP: gestão de ordens de serviço, clientes, veículos e peças, com API REST em
-  arquitetura MVC.
-- **Fase 2** — evolução da aplicação para **Arquitetura Hexagonal**, com containerização,
-  orquestração via **Kubernetes**, provisionamento como código via **Terraform** e pipeline de
-  **CI/CD**, preparando o sistema para escalar em picos de demanda.
-- **Fase 3** (este documento) — a aplicação passa a rodar em **nuvem real (GCP)**, atrás de um
-  **API Gateway**, com **autenticação de clientes por CPF via function serverless**, notificações
-  assíncronas via **Pub/Sub**, **observabilidade real** (New Relic: APM, dashboards, alertas,
-  uptime) e infraestrutura dividida em **4 repositórios** com CI/CD próprio cada um — ver
-  [seção 3.4](#34-os-4-repositórios-do-projeto).
+Na **Fase 4** a aplicação foi dividida em **três microsserviços independentes**, cada um com
+repositório, banco, pipeline de CI/CD e manifestos Kubernetes próprios. Este repositório é o
+**OS Service**: ordens de serviço, cadastros, autenticação de funcionários e o **orquestrador da saga**
+que coordena orçamento, pagamento e execução entre os serviços.
+
+| Serviço | Repositório | Banco |
+|---|---|---|
+| **OS Service** (este) | [`oficina`](https://github.com/robsonago/oficina) | PostgreSQL |
+| **Billing Service** — orçamento e pagamento (Mercado Pago) | [`oficina-billing-service`](https://github.com/robsonago/oficina-billing-service) | MongoDB |
+| **Execution Service** — fila de execução | [`oficina-execution-service`](https://github.com/robsonago/oficina-execution-service) | PostgreSQL |
+
+> Histórico: o README das fases 1 a 3 (monólito hexagonal, GKE, API Gateway, function de CPF,
+> New Relic) está preservado em [`docs/fases/README-fase3.md`](docs/fases/README-fase3.md).
 
 ---
 
 ## Índice
 
-1. [Objetivos desta fase](#1-objetivos-desta-fase)
-   - [Como testar agora (resumo)](#como-testar-agora-resumo)
-2. [Documentação completa do projeto](#2-documentação-completa-do-projeto)
-3. [Arquitetura](#3-arquitetura)
-   - [3.4 Os 4 repositórios do projeto](#34-os-4-repositórios-do-projeto)
-4. [Modelagem de domínio (DDD)](#4-modelagem-de-domínio-ddd)
-5. [Tecnologias](#5-tecnologias)
-6. [Pré-requisitos](#6-pré-requisitos)
-7. [Como executar](#7-como-executar)
-   - [7.2 Executando a aplicação já publicada na GCP](#72-executando-a-aplicação-já-publicada-na-gcp)
+1. [O que mudou na Fase 4](#1-o-que-mudou-na-fase-4)
+2. [Arquitetura](#2-arquitetura)
+3. [Saga Pattern](#3-saga-pattern)
+4. [Comunicação entre os serviços](#4-comunicação-entre-os-serviços)
+5. [Como executar](#5-como-executar)
+6. [API](#6-api)
+7. [Testes e qualidade](#7-testes-e-qualidade)
 8. [CI/CD](#8-cicd)
-9. [Documentação da API](#9-documentação-da-api)
-   - [9.3 Roteiro de teste completo via Postman](#93-roteiro-de-teste-completo-via-postman)
-10. [Autenticação](#10-autenticação)
-11. [Endpoints principais](#11-endpoints-principais)
-12. [Testes](#12-testes)
-13. [Segurança](#13-segurança)
+9. [Kubernetes e infraestrutura](#9-kubernetes-e-infraestrutura)
+10. [Observabilidade](#10-observabilidade)
+11. [Documentação](#11-documentação)
+12. [Segurança](#12-segurança)
 
 ---
 
-## 1. Objetivos desta fase
+## 1. O que mudou na Fase 4
 
-A Fase 2 deixou a aplicação containerizada, orquestrada via Kubernetes e com CI/CD — mas ainda rodando
-num cluster local (`kind`). A Fase 3 eleva o projeto a um nível corporativo, saindo do ambiente local
-para uma **nuvem real (GCP)**, com a arquitetura agora distribuída em componentes independentes:
+- **Microsserviços**: orçamento/pagamento e execução saíram deste serviço para o Billing e o
+  Execution Service. Nenhum serviço acessa o banco de outro.
+- **SQL + NoSQL**: PostgreSQL aqui e no Execution; MongoDB no Billing.
+- **Saga orquestrada** com compensação em todas as etapas (seção 3).
+- **Mensageria**: Pub/Sub com transactional outbox, idempotência e dead letter; REST síncrono só para
+  consultas, com circuit breaker.
+- **Mercado Pago** no Billing (Checkout Pro, webhook com validação de assinatura, estorno).
+- **Qualidade**: testes unitários nos três serviços, **BDD com Cucumber** do fluxo completo,
+  cobertura mínima de **80% que quebra o build** e SonarCloud no CI.
+- **CI/CD independente** por serviço, com deploy automatizado no GKE usando os manifestos de cada
+  repositório (`k8s/`), e `main` protegida por PR + checks.
 
-- **API Gateway** (Google API Gateway) como porta de entrada pública única, na frente da aplicação.
-- **Autenticação de clientes por CPF via function serverless** (`oficina-auth-function`): o cliente da
-  oficina (diferente do funcionário, que usa usuário/senha) se autentica só com o CPF, sem senha — a
-  function valida o CPF, consulta o cliente no banco e emite um JWT compatível com o da aplicação
-  principal. Ver [RFC-003](docs/rfcs/003-estrategia-autenticacao.md).
-- **Notificações assíncronas via Pub/Sub**: a aplicação publica um evento em vez de mandar e-mail
-  diretamente; uma segunda function (`oficina-notification-function`) consome a fila e envia o e-mail.
-  Ver [ADR-001](docs/adrs/001-padrao-comunicacao-notificacoes.md).
-- **Banco de Dados Gerenciado** (Cloud SQL/PostgreSQL) no lugar do Postgres em container. Ver
-  [RFC-002](docs/rfcs/002-escolha-banco-de-dados.md).
-- **Observabilidade real** via New Relic: agente APM (latência, erros de transação), métricas de
-  CPU/memória do cluster, métricas de negócio customizadas, logs estruturados correlacionados,
-  dashboards, alertas e checagem de uptime — ver [seção 3.3](#33-observabilidade).
-- **4 repositórios independentes**, cada um com seu próprio pipeline de CI/CD e deploy automático para
-  homologação e produção — ver [seção 3.4](#34-os-4-repositórios-do-projeto).
-- **Documentação arquitetural formal**: diagrama de componentes, diagramas de sequência, RFCs e ADRs —
-  ver [seção 2](#2-documentação-completa-do-projeto).
+## 2. Arquitetura
 
-As decisões da Fase 2 que continuam válidas (Arquitetura Hexagonal, containerização, HPA) estão
-documentadas nas seções abaixo e em [`docs/arquitetura/`](docs/arquitetura/).
+Diagrama completo, diagramas de sequência e máquina de estados em
+[`docs/arquitetura/arquitetura-fase4.md`](docs/arquitetura/arquitetura-fase4.md).
 
-### Como testar agora (resumo)
-
-A aplicação **já está publicada e rodando na nuvem** — dá pra testar sem instalar nada, só chamando
-os endpoints abaixo. Passo a passo completo na [seção 7.2](#72-executando-a-aplicação-já-publicada-na-gcp).
-
-```bash
-# Login como funcionário (usuário administrador padrão)
-TOKEN=$(curl -s -X POST https://oficina-gateway-producao-b0ob3sbi.ue.gateway.dev/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}' | python3 -c "import json,sys;print(json.load(sys.stdin)['token'])")
-
-# Chamada a um endpoint protegido, usando o token
-curl -s https://oficina-gateway-producao-b0ob3sbi.ue.gateway.dev/api/clientes \
-  -H "Authorization: Bearer $TOKEN"
+```mermaid
+flowchart LR
+    gw[API Gateway] --> ing[Ingress GKE]
+    ing --> os[OS Service]
+    ing --> bil[Billing Service]
+    ing --> exe[Execution Service]
+    os --- pg1[(PostgreSQL)]
+    bil --- mg[(MongoDB)]
+    exe --- pg2[(PostgreSQL)]
+    os <-- comandos / eventos --> ps{{Pub/Sub}}
+    bil <--> ps
+    exe <--> ps
+    bil --> mp([Mercado Pago])
+    os -. REST leitura .-> bil & exe
 ```
 
-Outras formas de testar, todas contra o mesmo ambiente:
+### Divisão dos microsserviços
 
-| Como | Onde | Detalhe |
+| Serviço | Responsabilidades | Por que separado |
 |---|---|---|
-| Swagger UI (interface visual) | `https://136.68.248.181.nip.io/swagger-ui.html` | [seção 7.2](#72-executando-a-aplicação-já-publicada-na-gcp) |
-| Postman (collection pronta, fluxo completo de uma OS) | [`collection/oficina-api.postman_collection.json`](collection/oficina-api.postman_collection.json) | [seção 9](#9-documentação-da-api) |
-| Autenticação de **cliente** por CPF (sem senha, via Cloud Function) | `https://oficina-auth-producao-rqwoyvcqha-rj.a.run.app` | [seção 9.2](#92-autenticação-de-clientes-por-cpf-fase-3) |
-| Observabilidade (dashboards, alertas, uptime) | New Relic, conta `8508624` | [seção 3.3](#33-observabilidade) |
+| OS Service | abertura da OS, status e histórico, cadastros (cliente, veículo, serviços, peças/estoque), login de funcionário, orquestração da saga | dono do agregado Ordem de Serviço e do status que o cliente acompanha |
+| Billing Service | gerar/enviar orçamento, aprovação, cobrança e estorno no Mercado Pago | regras de cobrança e o gateway de pagamento mudam e falham independente do resto |
+| Execution Service | fila de execução, diagnóstico e reparo, finalização | é a operação da oficina; escala com o número de mecânicos/filiais |
 
----
+Justificativa completa (contextos do DDD, escolha dos bancos e tecnologias) em
+[RFC-004](docs/rfcs/004-divisao-microsservicos-e-bancos.md).
 
-## 2. Documentação completa do projeto
-
-Este README cobre a visão geral e as instruções de execução. Os documentos abaixo detalham cada
-decisão técnica:
-
-| Documento | Conteúdo |
-|---|---|
-| [`docs/arquitetura/hexagonal.md`](docs/arquitetura/hexagonal.md) | Arquitetura Hexagonal: camadas, fluxo de uma requisição, tabela de ports/adapters por bounded context |
-| [`docs/arquitetura/infraestrutura.md`](docs/arquitetura/infraestrutura.md) | Docker, Kubernetes, Terraform e CI/CD — decisões técnicas e como executar cada parte |
-| [`docs/arquitetura/diagrama-componentes.md`](docs/arquitetura/diagrama-componentes.md) | Diagrama de componentes da Fase 3: gateway, app no GKE, functions, Cloud SQL, New Relic e como se conectam |
-| [`docs/arquitetura/diagrama-sequencia.md`](docs/arquitetura/diagrama-sequencia.md) | Diagramas de sequência: autenticação por CPF e abertura de uma ordem de serviço |
-| [`docs/rfcs/`](docs/rfcs/) | RFCs — propostas técnicas discutidas (nuvem, banco de dados, autenticação) |
-| [`docs/adrs/`](docs/adrs/) | ADRs — decisões de arquitetura já fechadas (comunicação assíncrona, HPA) |
-| [`docs/ddd/contextos-delimitados.md`](docs/ddd/contextos-delimitados.md) | Bounded contexts do domínio |
-| [`docs/ddd/agregados-e-entidades.md`](docs/ddd/agregados-e-entidades.md) | Agregados, entidades e objetos de valor |
-| [`docs/ddd/event-storming.md`](docs/ddd/event-storming.md) | Eventos de domínio, comandos, atores e políticas |
-| [`docs/ddd/domain-storytelling.md`](docs/ddd/domain-storytelling.md) | Narrativa pictográfica dos fluxos do domínio |
-| [`docs/ddd/linguagem-ubiqua.md`](docs/ddd/linguagem-ubiqua.md) | Glossário completo da linguagem ubíqua |
-| [`docs/vulnerabilidades/relatorio-vulnerabilidades.md`](docs/vulnerabilidades/relatorio-vulnerabilidades.md) | Relatório de análise de vulnerabilidades |
-
----
-
-## 3. Arquitetura
-
-### 3.1 Componentes da aplicação — Arquitetura Hexagonal (Ports & Adapters)
-
-O domínio ocupa o centro da aplicação e não depende de nenhuma outra camada; toda comunicação com o
-mundo externo (HTTP, banco de dados, e-mail) passa por interfaces (**ports**) implementadas por
-classes de infraestrutura (**adapters**). Regra de dependência: **Infrastructure → Application →
-Domain**, nunca o contrário.
-
-![Diagrama das Camadas Hexagonais](docs/arquitetura/images/hexagonal-camadas.png)
+### Estrutura deste serviço (hexagonal)
 
 ```
 src/main/java/br/com/fiap/challange/oficina/
 ├── domain/
-│   ├── model/         # POJOs puros (sem JPA/Hibernate), Value Objects (AuthToken, Estatisticas), enums
-│   ├── port/
-│   │   ├── in/        # Input Ports (contratos dos casos de uso) + commands/
-│   │   └── out/        # Output Ports (ClienteRepositoryPort, EmailPort, TokenPort, PasswordEncoderPort, AuthenticationPort, ...)
-│   ├── exception/      # Exceções de domínio
-│   └── validator/      # CpfCnpjValidator, PlacaValidator
-├── application/
-│   └── usecase/        # Implementações dos casos de uso (AuthUseCase, OrdemServicoUseCase, ...)
-├── infrastructure/
-│   ├── adapter/
-│   │   ├── in/rest/     # Controllers REST
-│   │   └── out/
-│   │       ├── persistence/
-│   │       │   ├── entity/    # Entidades JPA (*JpaEntity), isoladas do domínio
-│   │       │   ├── mapper/    # MapStruct: conversão domínio ↔ entidade JPA
-│   │       │   └── (repositórios Spring Data + *RepositoryAdapter, package-private)
-│   │       └── email/        # JavaMailSenderEmailAdapter / NoOpEmailAdapter
-│   ├── config/          # SecurityConfig, OpenApiConfig, DataInitializer
-│   ├── filter/          # CorrelationIdFilter
-│   └── security/        # JwtService, JwtAuthenticationFilter, PasswordEncoderAdapter, AuthenticationAdapter
-└── dto/                 # DTOs de entrada/saída
-    ├── request/
-    └── response/
+│   ├── model/        OrdemServico, StatusOS, SagaOrdemServico, EtapaSaga, HistoricoStatusOS, TiposMensagem...
+│   └── port/         in: OrdemServicoInputPort, OrquestradorSagaInputPort · out: repositórios, ComandosSagaPort...
+├── application/usecase/
+│   ├── OrquestradorSagaOS   ← a saga inteira e as compensações
+│   ├── GestorStatusOS       ← toda mudança de status passa aqui (valida + grava histórico)
+│   ├── EstoqueService       ← reserva/devolução de peças (passo e compensação da saga)
+│   └── OrdemServicoUseCase, ClienteUseCase, ...
+└── infrastructure/
+    ├── adapter/in/rest            controllers
+    ├── adapter/in/messaging       EventosSagaListener (idempotente)
+    ├── adapter/in/scheduler       VerificadorPrazosSaga
+    ├── adapter/out/persistence    JPA (OS, saga, histórico, outbox)
+    ├── adapter/out/mensageria     OutboxComandosAdapter + RelayOutbox
+    ├── adapter/out/rest           AcompanhamentoRestAdapter (Resilience4j)
+    └── messaging/                 Pub/Sub + propagação de trace
 ```
 
-Detalhes completos (fluxo de uma requisição ponta a ponta, tabela de ports/adapters por bounded
-context, benefícios aplicados) em [`docs/arquitetura/hexagonal.md`](docs/arquitetura/hexagonal.md).
+## 3. Saga Pattern
 
-### 3.2 Infraestrutura provisionada
+**Estratégia escolhida: saga orquestrada**, com o OS Service como orquestrador.
+Decisão e alternativas no [ADR-003](docs/adrs/003-saga-orquestrada.md).
 
-![Diagrama de Visão Geral da Infraestrutura](docs/arquitetura/images/infraestrutura-visao-geral.png)
+**Por que orquestração e não coreografia:** o fluxo tem seis etapas e cinco caminhos de compensação.
+Com coreografia, a regra "o que vem depois" e "o que desfazer quando falhar" ficaria espalhada pelos
+três serviços, e entender uma falha exigiria juntar logs de todos eles. Com um orquestrador, o fluxo
+inteiro está em uma classe (`OrquestradorSagaOS`), o estado de cada saga fica gravado com todos os
+passos e pode ser consultado pela API (`GET /api/ordens-servico/{id}/saga`). O OS Service já é o dono
+da OS e do status que o cliente vê, então é o lugar natural para coordenar.
 
-- **Docker**: `Dockerfile` multi-stage (build com JDK, runtime com JRE, ~180MB) e `docker-compose.yml`
-  para desenvolvimento local (app + Postgres + Mailpit).
-- **Kubernetes**: cluster GKE, namespaces de homologação/produção e manifestos de
-  `Deployment`/`Service`/`HorizontalPodAutoscaler` (min 2 / max 5 réplicas, 70% CPU) no repositório
-  [`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s).
-- **Terraform**: infraestrutura de cluster/rede/gateway em `oficina-infra-k8s` e do banco gerenciado
-  (Cloud SQL) em [`oficina-infra-db`](https://github.com/robsonago/oficina-infra-db) — cada
-  repositório provisiona sua parte com um único `terraform apply`.
+```
+gerar-orcamento ─► GERAR_ORCAMENTO ─► Billing ─► ORCAMENTO_GERADO ─► cliente aprova ─► ORCAMENTO_APROVADO
+   ─► reserva de peças ─► Mercado Pago ─► PAGAMENTO_APROVADO ─► EXECUTAR_OS ─► Execution
+   ─► EXECUCAO_ATUALIZADA ─► EXECUCAO_FINALIZADA ─► OS FINALIZADA (saga CONCLUIDA)
+```
 
-> As pastas `infra/` e `k8s/` que existiam neste repositório (setup local via `kind`) foram removidas;
-> o histórico desse setup fica registrado em
-> [`docs/arquitetura/infraestrutura.md`](docs/arquitetura/infraestrutura.md).
+| Se falhar... | Compensação |
+|---|---|
+| geração do orçamento | OS volta para diagnóstico |
+| cliente rejeita | OS volta para diagnóstico |
+| falta peça na hora da aprovação | cancela o orçamento no Billing, OS cancelada |
+| pagamento recusado / prazo de pagamento vencido | devolve as peças, cancela o orçamento, OS cancelada |
+| execução impossível | devolve as peças, **estorna o pagamento no Mercado Pago**, OS cancelada |
 
-### 3.3 Observabilidade
+Garantias: outbox transacional (o comando só sai se a mudança de estado foi gravada), consumidores
+idempotentes, guarda por etapa contra mensagens repetidas ou fora de ordem, lock otimista na saga,
+prazos por etapa e dead letter após 5 tentativas.
 
-Ferramenta: **New Relic** (ver [ADR](docs/adrs/) e justificativa de escolha). Três frentes:
+## 4. Comunicação entre os serviços
 
-- **Agente APM** (Java, embutido no `Dockerfile`) — latência e erros de cada transação HTTP, sem
-  código extra na aplicação.
-- **Métricas de infraestrutura e negócio** — `nri-prometheus` (instalado no cluster via Helm, repo
-  `oficina-infra-k8s`) coleta CPU/memória dos pods e faz scrape do endpoint
-  `/actuator/prometheus`, que expõe métricas de negócio customizadas via Micrometer
-  (`NegocioMetrics`): volume diário de OS abertas, tempo médio de execução por status, e contagem de
-  erros de integração (e-mail/Pub-Sub).
-- **Alertas e uptime** — uma condição NRQL dispara quando qualquer chamada em
-  `/api/ordens-servico` retorna erro (`TransactionError`), notificando por e-mail; dois Synthetic
-  Monitors batem em `/actuator/health` de cada ambiente a cada 5 minutos.
-
-Três dashboards (Volume de OS, Tempo Médio de Execução por Status, Erros e Falhas de Integração) —
-configurados via API (NerdGraph) no repositório `oficina-infra-k8s`.
-
-### 3.4 Os 4 repositórios do projeto
-
-O projeto é dividido em 4 repositórios independentes, cada um com seu próprio pipeline de CI/CD e
-deploy automático (homologação a partir da branch `homolog`, produção a partir da `main`):
-
-| Repositório | Responsabilidade | Tecnologia principal |
+| Tipo | Onde | Para quê |
 |---|---|---|
-| [`oficina`](https://github.com/robsonago/oficina) (este) | Aplicação principal (API REST) | Spring Boot / Java 21 |
-| [`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s) | Cluster GKE, namespaces, API Gateway, Pub/Sub, coletor New Relic | Terraform |
-| [`oficina-infra-db`](https://github.com/robsonago/oficina-infra-db) | Banco de Dados Gerenciado (Cloud SQL/PostgreSQL) | Terraform |
-| [`oficina-auth-function`](https://github.com/robsonago/oficina-auth-function) | Autenticação de clientes por CPF e disparo de notificações | Cloud Functions (Java 21) |
+| **Assíncrona (Pub/Sub)** | `oficina-billing-comandos`, `oficina-execucao-comandos`, `oficina-os-eventos` | todos os passos da saga ([ADR-004](docs/adrs/004-mensageria-pubsub-outbox.md)) |
+| **Síncrona (REST)** | `GET /api/ordens-servico/{id}/acompanhamento` | visão consolidada da OS, consultando Billing e Execution com timeout de 2s e circuit breaker; se um serviço cair, a resposta vem parcial com `indisponiveis` |
+| **Webhook** | Mercado Pago → Billing | confirmação de pagamento |
 
-### 3.5 Fluxo de deploy (CI/CD)
+## 5. Como executar
 
-![Diagrama do Pipeline de CI/CD](docs/arquitetura/images/infraestrutura-pipeline-cicd.png)
+### 5.1 Ambiente completo local (docker compose)
 
-A cada `git push` (qualquer branch) ou Pull Request para `main`, o workflow
-[`ci-cd.yml`](.github/workflows/ci-cd.yml) executa:
-
-1. **Build e Testes** — `./mvnw verify` (compila e roda os testes automatizados).
-2. **Build e Push da Imagem Docker** — publica em `ghcr.io/<owner>/oficina-app` (só em push).
-
-O deploy em nuvem (GKE) é feito pelo pipeline de
-[`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s), a partir da imagem publicada
-aqui.
-
----
-
-## 4. Modelagem de domínio (DDD)
-
-### Fluxo das Ordens de Serviço
-
-```
-RECEBIDA → EM_DIAGNOSTICO → AGUARDANDO_APROVACAO → EM_EXECUCAO → FINALIZADA → ENTREGUE
-                                     ↓ (rejeição)
-                                EM_DIAGNOSTICO
-```
-
-### Linguagem Ubíqua (resumo)
-
-| Termo                     | Descrição                                                                   |
-|---------------------------|-----------------------------------------------------------------------------|
-| **Ordem de Serviço (OS)** | Agregado raiz que representa um serviço completo desde abertura até entrega |
-| **Cliente**               | Pessoa física (CPF) ou jurídica (CNPJ) proprietária do veículo              |
-| **Veículo**               | Automóvel cadastrado pertencente a um cliente                               |
-| **Serviço**               | Tipo de trabalho realizado (ex: troca de óleo, alinhamento)                 |
-| **Peça/Insumo**           | Material consumível com controle de estoque                                 |
-| **Orçamento**             | Valor calculado automaticamente da soma de serviços + peças da OS           |
-| **Diagnóstico**           | Fase de avaliação técnica do veículo                                        |
-
-Glossário completo, bounded contexts, event storming e domain storytelling em
-[`docs/ddd/`](docs/ddd/) (ver [seção 2](#2-documentação-completa-do-projeto)).
-
----
-
-## 5. Tecnologias
-
-| Tecnologia        | Versão | Justificativa                                                                 |
-|-------------------|--------|-------------------------------------------------------------------------------|
-| Java              | 21     | LTS com records, sealed classes e performance melhorada                       |
-| Spring Boot       | 3.4.1  | Framework consolidado para APIs REST em Java                                  |
-| PostgreSQL        | 16     | ACID-compliant, excelente suporte a queries relacionais complexas e indexação |
-| Flyway            | latest | Controle de versão do schema do banco de dados                                |
-| JWT (JJWT)        | 0.12.3 | Autenticação stateless para APIs REST                                         |
-| SpringDoc OpenAPI | 2.3.0  | Documentação automática das APIs via Swagger UI                               |
-| Lombok            | latest | Redução de boilerplate em entidades e serviços                                |
-| JaCoCo            | 0.8.11 | Relatório de cobertura de testes                                              |
-| H2                | latest | Banco em memória para testes de integração                                    |
-| Mailpit           | latest | Servidor SMTP fake para testar notificações por e-mail sem envio real          |
-| Docker            | —      | Empacotamento da aplicação (multi-stage build)                                |
-| Kubernetes (GKE)  | —      | Orquestração dos containers (Deployments, Services, HPA) — `oficina-infra-k8s` |
-| Terraform         | ≥1.6   | Infraestrutura como Código — cluster/gateway em `oficina-infra-k8s`, banco em `oficina-infra-db` |
-| GitHub Actions    | —      | Pipeline de CI/CD — build, testes e imagem Docker                             |
-
-**Por que PostgreSQL?** ACID compliance garante consistência nas transações de ordens de serviço;
-suporte nativo a tipos avançados; excelente desempenho em queries com JOINs; maturidade e suporte da
-comunidade.
-
----
-
-## 6. Pré-requisitos
-
-| Ferramenta | Necessária para |
-|---|---|
-| Java 21+ e Maven 3.8+ | Rodar/compilar a aplicação sem Docker |
-| Docker e Docker Compose | Execução local e build da imagem |
-
-Para provisionar/alterar a infraestrutura em nuvem, ver os pré-requisitos de
-[`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s) e
-[`oficina-infra-db`](https://github.com/robsonago/oficina-infra-db).
-
----
-
-## 7. Como executar
-
-### 7.1 Execução local (docker-compose)
+Clone os três repositórios lado a lado:
 
 ```bash
-# Copie o arquivo de exemplo e ajuste se necessário
-cp .env.oficina.example .env.oficina
+git clone https://github.com/robsonago/oficina.git
+git clone https://github.com/robsonago/oficina-billing-service.git
+git clone https://github.com/robsonago/oficina-execution-service.git
 
-docker-compose --env-file .env.oficina up -d --build
+cd oficina
+docker compose up -d --build
 ```
 
-- API: http://localhost:8080 · Swagger UI: http://localhost:8080/swagger-ui.html · Mailpit:
-  http://localhost:8025
+Sobe os três serviços, um PostgreSQL para o OS Service, outro para o Execution, MongoDB para o
+Billing e o **emulador oficial do Pub/Sub** com os mesmos tópicos/assinaturas do GCP.
 
-**Sem Docker:** suba o Postgres separadamente e rode `./mvnw spring-boot:run`.
-
-### 7.2 Executando a aplicação já publicada na GCP
-
-A aplicação **já está publicada e rodando na nuvem** — não é preciso provisionar nada pra usá-la, só
-chamar os endpoints. O cluster GKE, banco Cloud SQL e API Gateway são provisionados pelos
-repositórios dedicados de infraestrutura ([`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s)
-e [`oficina-infra-db`](https://github.com/robsonago/oficina-infra-db) — consulte-os só se for
-recriar/alterar a infra do zero).
-
-**Ambiente ativo (produção):**
-
-| O quê | URL |
+| Serviço | URL |
 |---|---|
-| API (rotas de negócio, via Gateway) | `https://oficina-gateway-producao-b0ob3sbi.ue.gateway.dev` |
-| Swagger UI / `/api-docs` (via Ingress — não passa pelo Gateway) | `https://136.68.248.181.nip.io/swagger-ui.html` |
+| OS Service | http://localhost:8080/swagger-ui.html |
+| Billing Service | http://localhost:8081/billing/swagger-ui.html |
+| Execution Service | http://localhost:8082/execucao/swagger-ui.html |
 
-> Os hosts acima mudam a cada recriação da infraestrutura (IP novo a cada `terraform apply` do
-> `oficina-infra-k8s`) — se algum link estiver fora do ar, confira o IP/URL atual no README de
-> [`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s#9-ambiente-ativo).
+Usuário padrão: `admin` / `admin123` (o mesmo token vale nos três serviços).
 
-**Teste rápido (login + chamada autenticada), contra o ambiente real:**
+### 5.2 Demonstração da saga em um comando
 
 ```bash
-# 1. Login — usuário administrador padrão
-TOKEN=$(curl -s -X POST https://oficina-gateway-producao-b0ob3sbi.ue.gateway.dev/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}' | python3 -c "import json,sys;print(json.load(sys.stdin)['token'])")
-
-# 2. Chamada a um endpoint protegido, usando o token
-curl -s https://oficina-gateway-producao-b0ob3sbi.ue.gateway.dev/api/clientes \
-  -H "Authorization: Bearer $TOKEN"
+python3 scripts/demo_saga.py                                # caminho feliz até a entrega
+python3 scripts/demo_saga.py --cenario pagamento-recusado   # compensação: devolve peças, cancela orçamento
+python3 scripts/demo_saga.py --cenario falha-execucao       # compensação: devolve peças, estorna pagamento
+python3 scripts/demo_saga.py --base https://<api-gateway>   # mesmo roteiro contra o GCP
 ```
 
-Fluxo completo (criar cliente/veículo, abrir e conduzir uma OS até a entrega) na
-[seção 9.1](#91-exemplo-de-uso-ponta-a-ponta) — os mesmos exemplos funcionam trocando
-`http://localhost:8080` pela URL do Gateway acima. Um roteiro de teste mais completo (Swagger,
-Postman, autenticação por CPF, observabilidade) está em `atividades/Fase3/guia-apresentacao-professor.md`
-(anotação local, fora deste repositório).
+O script usa só as APIs REST públicas dos três serviços e imprime, no fim, o histórico da OS e os
+passos da saga. Saída real do caminho feliz:
 
----
+```
+ 4. Mecânico pede o orçamento → início da saga
+   ✓ HTTP 202, OS AGUARDANDO_ORCAMENTO — comando GERAR_ORCAMENTO saiu pela outbox
+   ✓ OS 1 agora está AGUARDANDO_APROVACAO (1.0s)
+ ...
+   saga 5c8ac2a7-... — etapa final CONCLUIDA
+   00:07:18  SAGA_INICIADA          Pedido de orçamento enviado ao Billing
+   00:07:19  ORCAMENTO_GERADO       Orçamento 6af7a637... enviado ao cliente (R$ 371)
+   00:07:20  ORCAMENTO_APROVADO     Orçamento aprovado, peças reservadas, aguardando pagamento
+   00:07:21  PAGAMENTO_APROVADO     Pagamento 1653097711221 confirmado, OS enviada para a fila de execução
+   00:07:23  EXECUCAO_ATUALIZADA    Execução: EM_DIAGNOSTICO (admin)
+   00:07:25  EXECUCAO_ATUALIZADA    Execução: EM_REPARO (admin)
+   00:07:25  EXECUCAO_FINALIZADA    Serviço concluído, saga finalizada
+```
+
+### 5.3 Só este serviço
+
+```bash
+docker run -d -p 5432:5432 -e POSTGRES_DB=oficina -e POSTGRES_USER=oficina -e POSTGRES_PASSWORD=oficina123 postgres:16-alpine
+./mvnw spring-boot:run        # mensageria em memória (MENSAGERIA_PROVIDER=memoria)
+```
+
+## 6. API
+
+- Swagger: `/swagger-ui.html`
+- Collection Postman (os três serviços, com o fluxo completo da saga e os cenários de compensação):
+  [`collection/oficina-api.postman_collection.json`](collection/oficina-api.postman_collection.json)
+
+### Ordens de serviço
+
+| Método | Endpoint | Descrição |
+|---|---|---|
+| POST | `/api/ordens-servico` | abrir OS (com serviços e peças opcionais) |
+| GET | `/api/ordens-servico` · `/ativas` | OS em andamento, da mais adiantada para a mais nova |
+| GET | `/api/ordens-servico/{id}` | detalhes |
+| GET | `/api/ordens-servico/{id}/status` | status (**público**, para o cliente acompanhar) |
+| GET | `/api/ordens-servico/status/{status}` | filtrar por status |
+| POST | `/api/ordens-servico/{id}/iniciar-diagnostico` | RECEBIDA → EM_DIAGNOSTICO |
+| POST | `/api/ordens-servico/{id}/servicos` · `/pecas` | adicionar itens (em diagnóstico) |
+| POST | `/api/ordens-servico/{id}/gerar-orcamento` | **inicia a saga** (HTTP 202) |
+| POST | `/api/ordens-servico/{id}/entregar` | FINALIZADA → ENTREGUE |
+| GET | `/api/ordens-servico/{id}/historico` | histórico de status com a origem de cada mudança |
+| GET | `/api/ordens-servico/{id}/saga` | sagas da OS com etapa atual e todos os passos |
+| GET | `/api/ordens-servico/{id}/acompanhamento` | OS + histórico + saga + orçamento + execução |
+| GET | `/api/ordens-servico/estatisticas` | tempo médio e contagens |
+
+Aprovação de orçamento e pagamento estão no **Billing** (`/api/orcamentos`, `/api/pagamentos`);
+diagnóstico, reparo e finalização da execução estão no **Execution** (`/api/execucoes`). Pelo API
+Gateway tudo fica na mesma URL — o Ingress separa por prefixo.
+
+### Cadastros e autenticação
+
+Sem mudança desde a Fase 3: `/api/auth`, `/api/clientes`, `/api/veiculos`, `/api/servicos`,
+`/api/pecas` (tabelas completas em [`docs/fases/README-fase3.md`](docs/fases/README-fase3.md#11-endpoints-principais)).
+Clientes continuam se autenticando por CPF pela function `oficina-auth-function`; o token emitido
+por ela também é aceito pelo Billing (o cliente só vê e aprova os próprios orçamentos).
+
+## 7. Testes e qualidade
+
+```bash
+./mvnw verify
+```
+
+| Tipo | Onde | O que cobre |
+|---|---|---|
+| Unitários | `domain/`, `service/`, `saga/`, `security/`, `filter/`, `controller/` | regras de domínio, casos de uso, orquestrador (eventos fora de ordem, prazos, falhas) |
+| Integração | `integration/*IT.java` | API completa com Spring Boot + H2, incluindo a saga recebendo eventos |
+| **BDD** | [`features/saga_ordem_servico.feature`](src/test/resources/features/saga_ordem_servico.feature) | **7 cenários** em português: caminho feliz até a entrega, pagamento recusado, falha na execução com estorno, falta de estoque, rejeição, prazo vencido e mensagem duplicada |
+| Mensageria real | `infrastructure/messaging/PubSubEmuladorIT` | publicação/consumo no emulador oficial do Pub/Sub (Testcontainers) |
+| REST resiliente | `infrastructure/rest/AcompanhamentoRestAdapterTest` | repasse de token/correlation id e circuit breaker abrindo |
+
+### Cobertura
+
+O `jacoco-maven-plugin` tem a regra `LINE COVEREDRATIO >= 0.80`: **o build falha** abaixo disso, e o
+pipeline publica o percentual no resumo de cada execução. Resultado da última execução local:
+
+| Serviço | Testes | Cobertura de linhas |
+|---|---|---|
+| OS Service | 252 (inclui 7 cenários BDD) | **94,7%** |
+| Billing Service | 63 | **96,2%** |
+| Execution Service | 23 | **96,2%** |
+
+Relatórios: `target/site/jacoco/index.html` (cobertura) e `target/cucumber-report.html` (BDD). No
+GitHub Actions ficam no artefato **relatorios** de cada execução, e a análise contínua no SonarCloud
+(`robsonago_oficina`, `robsonago_oficina-billing-service`, `robsonago_oficina-execution-service`).
 
 ## 8. CI/CD
 
-O workflow [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml) roda automaticamente a cada
-`git push` (qualquer branch) e em Pull Requests para `main` — ver [seção 3.5](#35-fluxo-de-deploy-cicd)
-para o detalhamento dos jobs.
-
----
-
-## 9. Documentação da API
-
-- **Swagger UI**: `http://localhost:8080/swagger-ui.html` (local) · em nuvem, direto pelo host do
-  Ingress (não pelo Gateway) — ver [seção 7.2](#72-executando-a-aplicação-já-publicada-na-gcp)
-- **Collection Postman completa**: [`collection/oficina-api.postman_collection.json`](collection/oficina-api.postman_collection.json)
-- Tabela completa de endpoints: [seção 11](#11-endpoints-principais)
-
-### 9.1 Exemplo de uso ponta a ponta
-
-Fluxo completo — autenticar, cadastrar cliente e veículo, abrir uma OS e consultar o status — com
-requisição e resposta de cada chamada (local, `http://localhost:8080`):
-
-**1. Login (funcionário) e captura do token:**
-
-```bash
-TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}' | jq -r .token)
-```
-
-**2. Cadastrar um cliente:**
-
-```bash
-curl -s -X POST http://localhost:8080/api/clientes \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"nome":"João Silva","documento":"52998224725","email":"joao@example.com","telefone":"11999999999"}'
-```
-
-```json
-{"id": 1, "nome": "João Silva", "documento": "529.982.247-25", "email": "joao@example.com", ...}
-```
-
-**3. Cadastrar um veículo para esse cliente:**
-
-```bash
-curl -s -X POST http://localhost:8080/api/veiculos \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"placa":"ABC1D23","modelo":"Onix","marca":"Chevrolet","ano":2022,"clienteId":1}'
-```
-
-**4. Abrir uma ordem de serviço** (identifica cliente e veículo por documento/placa, não por ID):
-
-```bash
-curl -s -X POST http://localhost:8080/api/ordens-servico \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"documentoCliente":"52998224725","placaVeiculo":"ABC1D23","descricaoProblema":"Barulho no motor"}'
-```
-
-```json
-{"id": 1, "numero": "OS-2026-A1B2C3D4", "status": "RECEBIDA", "statusDescricao": "Recebida", "valorTotal": 0, ...}
-```
-
-**5. Consultar status da OS — endpoint público, sem token (é o que o cliente usa pra acompanhar):**
-
-```bash
-curl -s http://localhost:8080/api/ordens-servico/1/status
-```
-
-```json
-{"status": "RECEBIDA", "ordemServicoId": "1"}
-```
-
-A partir daí, o fluxo segue pelos endpoints de [seção 11](#11-endpoints-principais): iniciar
-diagnóstico → gerar orçamento (dispara notificação) → aprovar/rejeitar → finalizar → entregar.
-
-### 9.2 Autenticação de clientes por CPF (Fase 3)
-
-Diferente do funcionário (usuário/senha, endpoint acima), o cliente final se autentica só com o CPF,
-através da function serverless `oficina-auth-function` (fora deste repositório, ver
-[RFC-003](docs/rfcs/003-estrategia-autenticacao.md)):
-
-```bash
-curl -s -X POST https://<url-da-cloud-function-oficina-auth> \
-  -H "Content-Type: application/json" \
-  -d '{"cpf":"52998224725"}'
-```
-
-A function valida o CPF, consulta o cliente no banco e devolve um JWT com a claim `role=CLIENTE`,
-aceito pelos mesmos endpoints protegidos desta aplicação (`JwtAuthenticationFilter` reconhece esse
-token sem passar pelo `UserDetailsService` de funcionários).
-
-### 9.3 Roteiro de teste completo via Postman
-
-A collection fica em [`collection/oficina-api.postman_collection.json`](collection/oficina-api.postman_collection.json)
-e é **totalmente automatizada** — não é preciso copiar token, ID de cliente, de OS ou de qualquer
-outra entidade manualmente em nenhum momento:
-
-- Um script de pré-requisição da própria collection faz **login automático** como administrador
-  (`admin`/`admin123`) antes da primeira chamada que exige autenticação, caso ainda não exista um
-  token salvo.
-- Toda requisição de criação (cliente, veículo, peça, serviço, ordem de serviço) **salva o ID
-  retornado numa variável da collection**, reaproveitada automaticamente pelas requisições
-  seguintes que dependem dele.
-- A variável `base_url` já aponta para o ambiente de produção na nuvem (`gateway_producao_url`) —
-  contra o mesmo ambiente descrito na [seção 7.2](#72-executando-a-aplicação-já-publicada-na-gcp).
-  Para testar contra o ambiente local, troque `base_url` por `{{base_url_local}}` nas variáveis da
-  collection.
-
-**Passo a passo:** basta importar a collection no Postman e executar as requisições abaixo, na
-ordem, uma de cada vez (botão *Send*). Cada uma já está numerada dentro da pasta correspondente:
-
-1. **Login** — `Auth > Login: salva token`. Pode pular direto para o passo 2: o login acontece
-   sozinho na primeira chamada protegida, via script de pré-requisição.
-2. **Cadastrar um cliente** — `Clientes > Criar Cliente`. Salva `clienteId` e `clienteDocumento`.
-3. **Cadastrar um veículo para esse cliente** — `Veículos > Criar Veículo`. Salva `veiculoId` e
-   `veiculoPlaca`; necessário porque a abertura da OS identifica o veículo pela placa.
-4. **Cadastrar uma peça** — `Peças > Criar Peça`. Salva `pecaId` e define o estoque inicial.
-5. **Cadastrar um serviço** — `Serviços > Criar Serviço`. Salva `servicoId`.
-6. **Abrir a ordem de serviço** — `Ordens de Serviço > 01 Criar OS`. Identifica cliente e veículo
-   pelo documento/placa salvos acima, não por ID. Salva `osId`. Status inicial: `RECEBIDA`.
-7. **Iniciar o diagnóstico** — `02 Iniciar Diagnóstico`. `RECEBIDA → EM_DIAGNOSTICO`.
-8. **Adicionar o serviço à OS** — `03 Adicionar Serviço à OS`. Usa o `servicoId` do passo 5.
-9. **Adicionar a peça à OS** — `04 Adicionar Peça à OS`. Usa o `pecaId` do passo 4.
-10. **Gerar o orçamento** — `05 Gerar Orçamento`. Soma peças + serviços da OS,
-    `EM_DIAGNOSTICO → AGUARDANDO_APROVACAO`, dispara a notificação assíncrona (Pub/Sub).
-11. **Aprovar o orçamento** — `06 Aprovar ou Rejeitar Orçamento via Body`, com o corpo
-    `{"aprovado": true}`. Debita o estoque da peça e muda `AGUARDANDO_APROVACAO → EM_EXECUCAO`.
-    (Enviar `{"aprovado": false}` rejeita e volta a OS para `EM_DIAGNOSTICO`.)
-12. **Finalizar a OS** — `07 Finalizar OS`. `EM_EXECUCAO → FINALIZADA`.
-13. **Entregar o veículo** — `08 Entregar Veículo`. `FINALIZADA → ENTREGUE`, último status do
-    fluxo.
-
-**Consultando como cliente (sem crachá de funcionário):**
-
-14. **Consultar o status da OS** — `Consultar Status (público — sem autenticação)`. Pode ser
-    chamado a qualquer momento entre os passos 6 e 13, sem token nenhum — é o endpoint que o
-    cliente final usa para acompanhar a própria OS.
-15. **Autenticar como cliente por CPF** (opcional) — pasta `Autenticação do Cliente por CPF
-    (oficina-auth-function)`, requisição `Autenticar por CPF`. Chama a function serverless com o
-    `clienteDocumento` salvo no passo 2 e guarda o token do cliente em `token_cliente`. Em seguida,
-    rode `Consultar OS autenticado como cliente` para ver a mesma OS usando esse token — prova que
-    o endpoint aceita tanto o token de funcionário quanto o de cliente.
-
----
-
-## 10. Autenticação
-
-Um usuário administrador é criado automaticamente na primeira execução:
+Cada serviço tem o seu pipeline ([`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml)):
 
 ```
-Username: admin
-Password: admin123
+push / PR ─► Build e Testes ─► Qualidade (SonarCloud) ─► Imagem Docker (GHCR) ─► Deploy no GKE
+             mvn verify          Quality Gate              só homolog/main          kubectl apply -k k8s/overlays/<amb>
+             (cobertura ≥ 80%)                                                      + rollout status
 ```
 
-1. Login para obter o token JWT:
+- `homolog` → namespace `oficina-homolog`; `main` → `oficina-producao`.
+- O deploy usa os manifestos deste repositório com a imagem do commit (`:<sha>`).
+- `main` protegida: merge só por Pull Request com **Build e Testes** e **Qualidade (SonarCloud)**
+  passando.
+- Secrets/variáveis do repositório: `SONAR_TOKEN` (SonarCloud) e `GKE_DEPLOY_ENABLED=true` (liga o
+  deploy quando o cluster está de pé). Autenticação no GCP por Workload Identity Federation, sem chave.
 
-```bash
-curl -X POST http://localhost:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+## 9. Kubernetes e infraestrutura
+
+```
+k8s/
+├── base/        Deployment (app + Cloud SQL Auth Proxy), Service, HPA (2–5 réplicas)
+└── overlays/    homolog | producao
 ```
 
-2. Use o token nas requisições:
+O que é compartilhado fica nos repositórios de infraestrutura (Terraform):
 
-```bash
-curl http://localhost:8080/api/clientes \
-  -H "Authorization: Bearer <seu-token>"
-```
+- [`oficina-infra-db`](https://github.com/robsonago/oficina-infra-db): instância Cloud SQL, databases e
+  usuários do OS Service e do Execution Service (separados).
+- [`oficina-infra-k8s`](https://github.com/robsonago/oficina-infra-k8s): GKE, namespaces, tópicos e
+  assinaturas da saga (com DLQ), service accounts e permissões mínimas por serviço, ConfigMaps/Secrets,
+  Ingress com roteamento por serviço e API Gateway.
 
-**Nota:** o endpoint `GET /api/ordens-servico/{id}/status` é público — o cliente pode consultar sem
-autenticação.
+## 10. Observabilidade
 
----
+Mesma stack da Fase 3 (New Relic), estendida aos três serviços:
 
-## 11. Endpoints principais
+- **APM e distributed tracing**: agente Java em todas as imagens; o contexto de trace atravessa o
+  Pub/Sub (cabeçalhos copiados para os atributos da mensagem, inclusive via outbox), então uma OS
+  aparece como um único trace passando pelos serviços.
+- **Logs JSON** com `service`, `correlationId` e `sagaId` — filtrar por `sagaId` mostra a saga inteira.
+- **Métricas de negócio**: sagas iniciadas/concluídas/compensadas (por motivo), eventos do Billing,
+  fila de execução por status, eventos pendentes na outbox, erros de integração.
+- Consultas NRQL para o dashboard da saga em
+  [`docs/arquitetura/arquitetura-fase4.md`](docs/arquitetura/arquitetura-fase4.md#5-observabilidade-dos-fluxos-distribuídos).
 
-### Autenticação
+## 11. Documentação
 
-| Método | Endpoint              | Descrição             |
-|--------|-----------------------|-----------------------|
-| POST   | `/api/auth/login`     | Obter token JWT       |
-| POST   | `/api/auth/registrar` | Criar usuário (ADMIN) |
+| Documento | Conteúdo |
+|---|---|
+| [`docs/arquitetura/arquitetura-fase4.md`](docs/arquitetura/arquitetura-fase4.md) | diagrama geral, sequências da saga (sucesso e compensação), estados, observabilidade |
+| [`docs/adrs/003-saga-orquestrada.md`](docs/adrs/003-saga-orquestrada.md) | escolha da saga orquestrada |
+| [`docs/adrs/004-mensageria-pubsub-outbox.md`](docs/adrs/004-mensageria-pubsub-outbox.md) | Pub/Sub, outbox, DLQ, REST com circuit breaker |
+| [`docs/rfcs/004-divisao-microsservicos-e-bancos.md`](docs/rfcs/004-divisao-microsservicos-e-bancos.md) | divisão dos serviços, SQL × NoSQL, tecnologias |
+| [`docs/ddd/`](docs/ddd/) | contextos delimitados, agregados, event storming, linguagem ubíqua |
+| [`docs/fases/README-fase3.md`](docs/fases/README-fase3.md) | documentação das fases 1 a 3 |
 
-### Clientes
+## 12. Segurança
 
-| Método | Endpoint                             | Descrição           |
-|--------|---------------------------------------|---------------------|
-| POST   | `/api/clientes`                      | Criar cliente       |
-| GET    | `/api/clientes`                      | Listar clientes     |
-| GET    | `/api/clientes/{id}`                 | Buscar por ID       |
-| GET    | `/api/clientes/documento/{cpf-cnpj}` | Buscar por CPF/CNPJ |
-| PUT    | `/api/clientes/{id}`                 | Atualizar cliente   |
-| DELETE | `/api/clientes/{id}`                 | Desativar cliente   |
-
-### Veículos
-
-| Método | Endpoint                      | Descrição              |
-|--------|-------------------------------|-------------------------|
-| POST   | `/api/veiculos`               | Cadastrar veículo      |
-| GET    | `/api/veiculos`               | Listar veículos        |
-| GET    | `/api/veiculos/placa/{placa}` | Buscar por placa       |
-| GET    | `/api/veiculos/cliente/{id}`  | Veículos de um cliente |
-| PUT    | `/api/veiculos/{id}`          | Atualizar veículo      |
-| DELETE | `/api/veiculos/{id}`          | Desativar veículo      |
-
-### Ordens de Serviço
-
-| Método | Endpoint                                       | Descrição                                                                | Auth    |
-|--------|-------------------------------------------------|---------------------------------------------------------------------------|---------|
-| POST   | `/api/ordens-servico`                          | Abrir OS (retorna identificação única)                                   | Sim     |
-| GET    | `/api/ordens-servico`                          | Listar OS ativas por prioridade (EM_EXECUCAO > AGUARDANDO_APROVACAO > EM_DIAGNOSTICO > RECEBIDA), mais antigas primeiro, excluindo FINALIZADA/ENTREGUE | Sim     |
-| GET    | `/api/ordens-servico/ativas`                   | Mesma listagem acima (alias explícito)                                   | Sim     |
-| GET    | `/api/ordens-servico/{id}`                     | Detalhes da OS                                                           | Sim     |
-| GET    | `/api/ordens-servico/{id}/status`              | Consultar status da OS                                                   | **Não** |
-| GET    | `/api/ordens-servico/status/{status}`          | Filtrar por status                                                       | Sim     |
-| POST   | `/api/ordens-servico/{id}/iniciar-diagnostico` | Iniciar diagnóstico                                                      | Sim     |
-| POST   | `/api/ordens-servico/{id}/gerar-orcamento`     | Gerar orçamento e enviar para aprovação (dispara e-mail)                 | Sim     |
-| POST   | `/api/ordens-servico/{id}/aprovacao-orcamento` | Aprovar ou rejeitar orçamento via body (`{"aprovado": true}` ou `false`) | Sim     |
-| POST   | `/api/ordens-servico/{id}/finalizar`           | Finalizar execução                                                       | Sim     |
-| POST   | `/api/ordens-servico/{id}/entregar`            | Registrar entrega do veículo                                             | Sim     |
-| POST   | `/api/ordens-servico/{id}/servicos`            | Adicionar serviço à OS                                                   | Sim     |
-| POST   | `/api/ordens-servico/{id}/pecas`               | Adicionar peça à OS                                                      | Sim     |
-| GET    | `/api/ordens-servico/estatisticas`             | Tempo médio + contagens                                                  | Sim     |
-
-### Peças e Insumos
-
-| Método | Endpoint                  | Descrição         |
-|--------|---------------------------|-------------------|
-| POST   | `/api/pecas`              | Criar peça        |
-| GET    | `/api/pecas`              | Listar peças      |
-| PUT    | `/api/pecas/{id}`         | Atualizar peça    |
-| PATCH  | `/api/pecas/{id}/estoque` | Atualizar estoque |
-| DELETE | `/api/pecas/{id}`         | Desativar peça    |
-
----
-
-## 12. Testes
-
-### 12.1 Organização
-
-`src/test/java/.../oficina/` é dividido por tipo, refletindo a Arquitetura Hexagonal:
-
-| Pacote | O que testa | Estilo |
-|---|---|---|
-| `domain/` | Modelos e regras de domínio puras (`OrdemServico`, `StatusOS`, validadores) | Unitário, sem Spring |
-| `service/` | Casos de uso (`*UseCase`) | Unitário, com Mockito mockando os *ports* de saída |
-| `controller/` | Tratamento de erro dos controllers (`GlobalExceptionHandler`) | Unitário, sem Spring |
-| `security/` | `JwtService`, `JwtAuthenticationFilter` | Unitário |
-| `filter/` | `CorrelationIdFilter` | Unitário |
-| `integration/` (`*IT.java`) | Fluxo HTTP completo de cada controller, ponta a ponta | `@SpringBootTest` + `MockMvc`, banco H2 em memória via `@ActiveProfiles("test")` |
-
-Convenção de nomes: `*Test.java` para unitários, `*IT.java` para integração — ambos rodam juntos no
-mesmo `./mvnw test` (configurado no `maven-surefire-plugin` do `pom.xml`), não é preciso um comando
-separado para cada tipo.
-
-### 12.2 Como executar
-
-```bash
-# Todos os testes (unitários + integração)
-./mvnw test
-
-# Só uma classe ou um pacote
-./mvnw test -Dtest=OrdemServicoUseCaseTest
-./mvnw test -Dtest='integration.*'
-
-# Relatório de cobertura (gerado em target/site/jacoco/index.html)
-./mvnw test jacoco:report
-```
-
-Os testes de integração usam H2 em memória (perfil `test`), não dependem de um Postgres real nem de
-credenciais — rodam isolados, inclusive no pipeline de CI/CD.
-
----
-
-## 13. Segurança
-
-- Autenticação via **JWT (Bearer Token)** — sem estado (stateless)
-- **BCrypt** para hash de senhas
-- Validação de **CPF/CNPJ** com algoritmo oficial da Receita Federal
-- Validação de **placa de veículo** (padrão antigo e Mercosul)
-- Soft delete para clientes, veículos, serviços e peças (não remove dados históricos)
-- Spring Security filtra todas as rotas administrativas
-- Análise de vulnerabilidades documentada em
-  [`docs/vulnerabilidades/relatorio-vulnerabilidades.md`](docs/vulnerabilidades/relatorio-vulnerabilidades.md)
-- **Nota:** os defaults de `JWT_SECRET`/senha do banco em `application.yaml` são só para
-  desenvolvimento local, nunca para produção — em nuvem, esses valores vêm de Secrets do Kubernetes
-  populados a partir do Secret Manager (ver
-  [`oficina-infra-db`](https://github.com/robsonago/oficina-infra-db)). Segredo de fato (credenciais
-  de e-mail) fica fora do Git via `.env.oficina` (`.gitignore`).
-
-**Controle de estoque:** o estoque das peças é debitado automaticamente quando o cliente **aprova o
-orçamento** (transição para `EM_EXECUCAO`). Caso o estoque seja insuficiente, a aprovação é bloqueada
-com erro `422 Unprocessable Entity`.
+- JWT stateless validado por cada serviço (mesmo segredo, vindo do Secret Manager).
+- Cliente autenticado por CPF só enxerga e aprova os próprios orçamentos; a fila de execução é
+  restrita a funcionários.
+- Webhook do Mercado Pago validado pela assinatura `x-signature` (HMAC-SHA256).
+- Cada serviço tem service account, usuário de banco e permissões de Pub/Sub próprios (princípio do
+  menor privilégio), autenticando no GCP por Workload Identity.
+- Defaults de senha/segredo no `application.yaml` e no `docker-compose.yml` servem só para o ambiente
+  local.

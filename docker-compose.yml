@@ -1,90 +1,136 @@
-networks:
-  oficina-net:
-    driver: bridge
+# Ambiente local completo da Fase 4: os 3 microsserviços, um banco para
+# cada um e o emulador do Pub/Sub no lugar do GCP.
+#
+# Os outros dois serviços são construídos a partir dos repositórios irmãos,
+# então clone os três lado a lado:
+#   oficina/  oficina-billing-service/  oficina-execution-service/
+#
+#   docker compose up -d --build
+#
+# OS Service ......... http://localhost:8080/swagger-ui.html
+# Billing Service .... http://localhost:8081/billing/swagger-ui.html
+# Execution Service .. http://localhost:8082/execucao/swagger-ui.html
+
+x-pubsub: &pubsub
+  MENSAGERIA_PROVIDER: pubsub
+  PUBSUB_PROJECT_ID: oficina-local
+  PUBSUB_EMULATOR_HOST: pubsub:8085
+  NEW_RELIC_AGENT_ENABLED: "false"
+  JWT_SECRET: ${JWT_SECRET:-bXlTdXBlclNlY3JldEtleUZvckpXVFN5c3RlbU9maWNpbmFNZWNhbmljYTIwMjQ=}
 
 services:
-  postgres:
+  # ─────────────── bancos (um por serviço) ───────────────
+  postgres-os:
     image: postgres:16-alpine
-    container_name: oficina-postgres
-    restart: unless-stopped
     environment:
       POSTGRES_DB: oficina
-      POSTGRES_USER: ${DB_USERNAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+      POSTGRES_USER: oficina
+      POSTGRES_PASSWORD: oficina123
+    ports: ["5432:5432"]
+    volumes: [pg-os:/var/lib/postgresql/data]
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME}" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          memory: 256M
-    networks:
-      - oficina-net
+      test: ["CMD-SHELL", "pg_isready -U oficina"]
+      interval: 5s
+      retries: 10
 
-  mailpit:
-    image: axllent/mailpit:latest
-    container_name: oficina-mailpit
-    restart: unless-stopped
-    ports:
-      - "1025:1025"
-      - "8025:8025"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 128M
-        reservations:
-          memory: 64M
-    networks:
-      - oficina-net
-
-  app:
-    build: .
-    container_name: oficina-app
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
+  postgres-execucao:
+    image: postgres:16-alpine
     environment:
-      JAVA_OPTS: ${JAVA_OPTS:-}
-      DB_URL: ${DB_URL}
-      DB_USERNAME: ${DB_USERNAME}
-      DB_PASSWORD: ${DB_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION: ${JWT_EXPIRATION}
-      MAIL_HOST: ${MAIL_HOST}
-      MAIL_PORT: ${MAIL_PORT}
-      MAIL_AUTH: ${MAIL_AUTH}
-      MAIL_STARTTLS: ${MAIL_STARTTLS}
-      MAIL_FROM: ${MAIL_FROM}
-      EMAIL_PROVIDER: smtp
-    depends_on:
-      postgres:
-        condition: service_healthy
-      mailpit:
-        condition: service_started
+      POSTGRES_DB: execucao
+      POSTGRES_USER: execucao
+      POSTGRES_PASSWORD: execucao123
+    ports: ["5433:5432"]
+    volumes: [pg-execucao:/var/lib/postgresql/data]
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          memory: 256M
-    networks:
-      - oficina-net
+      test: ["CMD-SHELL", "pg_isready -U execucao"]
+      interval: 5s
+      retries: 10
+
+  mongo-billing:
+    image: mongo:7.0
+    ports: ["27017:27017"]
+    volumes: [mongo-billing:/data/db]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      retries: 10
+
+  # ─────────────── mensageria ───────────────
+  pubsub:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    command: gcloud beta emulators pubsub start --project=oficina-local --host-port=0.0.0.0:8085
+    ports: ["8085:8085"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8085/v1/projects/oficina-local/topics > /dev/null"]
+      interval: 5s
+      retries: 20
+
+  # Cria os mesmos tópicos/assinaturas que o Terraform cria no GCP
+  pubsub-init:
+    image: curlimages/curl:8.11.1
+    depends_on:
+      pubsub:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        API=http://pubsub:8085/v1/projects/oficina-local
+        criar() {
+          curl -s -X PUT "$$API/topics/$$1" > /dev/null
+          curl -s -X PUT "$$API/subscriptions/$$2" -H 'Content-Type: application/json' \
+            -d "{\"topic\":\"projects/oficina-local/topics/$$1\",\"ackDeadlineSeconds\":30}" > /dev/null
+          echo "tópico $$1 -> assinatura $$2"
+        }
+        criar oficina-billing-comandos-local oficina-billing-comandos-local-billing
+        criar oficina-execucao-comandos-local oficina-execucao-comandos-local-execucao
+        criar oficina-os-eventos-local oficina-os-eventos-local-os
+        criar oficina-notificacoes-local oficina-notificacoes-local-log
+
+  # ─────────────── microsserviços ───────────────
+  os-service:
+    build: .
+    ports: ["8080:8080"]
+    environment:
+      <<: *pubsub
+      DB_URL: jdbc:postgresql://postgres-os:5432/oficina
+      DB_USERNAME: oficina
+      DB_PASSWORD: oficina123
+      BILLING_URL: http://billing-service:8080
+      EXECUCAO_URL: http://execution-service:8080
+    depends_on:
+      postgres-os: {condition: service_healthy}
+      pubsub-init: {condition: service_completed_successfully}
+
+  billing-service:
+    build: ../oficina-billing-service
+    ports: ["8081:8080"]
+    environment:
+      <<: *pubsub
+      SERVER_PORT: "8080"
+      MONGODB_URI: mongodb://mongo-billing:27017/oficina_billing
+      PAGAMENTO_PROVIDER: ${PAGAMENTO_PROVIDER:-simulado}
+      PAGAMENTO_SIMULADO_LINK_BASE: http://localhost:8081/api/pagamentos/simulacao
+      MERCADOPAGO_ACCESS_TOKEN: ${MERCADOPAGO_ACCESS_TOKEN:-}
+      MERCADOPAGO_NOTIFICATION_URL: ${MERCADOPAGO_NOTIFICATION_URL:-}
+    depends_on:
+      mongo-billing: {condition: service_healthy}
+      pubsub-init: {condition: service_completed_successfully}
+
+  execution-service:
+    build: ../oficina-execution-service
+    ports: ["8082:8080"]
+    environment:
+      <<: *pubsub
+      SERVER_PORT: "8080"
+      DB_URL: jdbc:postgresql://postgres-execucao:5432/execucao
+      DB_USERNAME: execucao
+      DB_PASSWORD: execucao123
+    depends_on:
+      postgres-execucao: {condition: service_healthy}
+      pubsub-init: {condition: service_completed_successfully}
 
 volumes:
-  pgdata:
+  pg-os:
+  pg-execucao:
+  mongo-billing:

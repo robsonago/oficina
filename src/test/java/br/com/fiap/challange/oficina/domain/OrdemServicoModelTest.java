@@ -48,8 +48,13 @@ class OrdemServicoModelTest {
         assertThat(os.getStatus()).isEqualTo(StatusOS.EM_DIAGNOSTICO);
         assertThat(os.getDataInicio()).isNull();
 
+        os.transicionarStatus(StatusOS.AGUARDANDO_ORCAMENTO);
         os.transicionarStatus(StatusOS.AGUARDANDO_APROVACAO);
         assertThat(os.getStatus()).isEqualTo(StatusOS.AGUARDANDO_APROVACAO);
+
+        os.transicionarStatus(StatusOS.AGUARDANDO_PAGAMENTO);
+        os.transicionarStatus(StatusOS.AGUARDANDO_EXECUCAO);
+        assertThat(os.getDataInicio()).isNull();
 
         os.transicionarStatus(StatusOS.EM_EXECUCAO);
         assertThat(os.getStatus()).isEqualTo(StatusOS.EM_EXECUCAO);
