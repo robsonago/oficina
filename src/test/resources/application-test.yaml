@@ -19,3 +19,11 @@ spring:
 jwt:
   secret: dGVzdFNlY3JldEtleUZvclRlc3RpbmdQdXJwb3Nlc09maWNpbmExMjM0NQ==
   expiration: 3600000
+
+mensageria:
+  provider: memoria
+  outbox:
+    intervalo-ms: 3600000
+
+saga:
+  verificar-prazos: false

@@ -63,6 +63,10 @@ flowchart TB
     R4 -.->|"gcloud functions deploy"| NotifFn
 ```
 
+Versão desenhada à mão (Excalidraw) do mesmo diagrama:
+
+![Diagrama de componentes — Fase 3](images/infra-gcp.png)
+
 ## Legenda
 
 - **Linha sólida**: chamada síncrona (HTTP/JDBC).

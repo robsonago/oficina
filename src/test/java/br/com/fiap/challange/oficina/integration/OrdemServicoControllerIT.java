@@ -64,11 +64,52 @@ class OrdemServicoControllerIT {
     @Autowired
     PasswordEncoder passwordEncoder;
 
+    @Autowired
+    org.springframework.jdbc.core.JdbcTemplate jdbc;
+    @Autowired
+    br.com.fiap.challange.oficina.infrastructure.messaging.ReceptorMensagens receptor;
+
     private String token;
     private Long osId;
 
+    private void limparTabelasDaSaga() {
+        for (String tabela : List.of("saga_passos", "sagas_ordem_servico", "historico_status_os",
+                "outbox_mensagens", "mensagens_processadas")) {
+            jdbc.execute("DELETE FROM " + tabela);
+        }
+    }
+
+    private Long criarServico() throws Exception {
+        String json = mockMvc.perform(post("/api/servicos").header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nome\":\"Revisão\",\"descricao\":\"Revisão geral\",\"preco\":200.00,\"tempoEstimadoMinutos\":60}"))
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(json).get("id").asLong();
+    }
+
+    private void prepararParaOrcamento() throws Exception {
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/iniciar-diagnostico").header("Authorization", token))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/servicos").header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"servicoId\":" + criarServico() + ",\"quantidade\":1}"))
+                .andExpect(status().isOk());
+    }
+
+    private String sagaAtual() throws Exception {
+        String json = mockMvc.perform(get("/api/ordens-servico/" + osId + "/saga").header("Authorization", token))
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(json).get(0).get("id").asText();
+    }
+
+    private void evento(String tipo, String sagaId, java.util.Map<String, Object> dados) {
+        receptor.receber(br.com.fiap.challange.oficina.infrastructure.messaging.Mensagem.nova(
+                tipo, sagaId, osId, objectMapper.valueToTree(dados)));
+    }
+
     @BeforeEach
     void setUp() throws Exception {
+        limparTabelasDaSaga();
         osRepository.deleteAll();
         veiculoRepository.deleteAll();
         clienteRepository.deleteAll();
@@ -109,6 +150,7 @@ class OrdemServicoControllerIT {
 
     @AfterEach
     void tearDown() {
+        limparTabelasDaSaga();
         osRepository.deleteAll();
         pecaRepository.deleteAll();
         servicoRepository.deleteAll();
@@ -134,56 +176,70 @@ class OrdemServicoControllerIT {
     }
 
     @Test
-    void deveExecutarFluxoCompletoDeStatus() throws Exception {
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/iniciar-diagnostico")
-                        .header("Authorization", token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("EM_DIAGNOSTICO"));
+    void deveExecutarFluxoCompletoPelaSaga() throws Exception {
+        prepararParaOrcamento();
 
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/gerar-orcamento")
-                        .header("Authorization", token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("AGUARDANDO_APROVACAO"));
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/gerar-orcamento").header("Authorization", token))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("AGUARDANDO_ORCAMENTO"));
+        String sagaId = sagaAtual();
 
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/aprovacao-orcamento")
-                        .header("Authorization", token)
-                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                        .content("{\"aprovado\": true}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("EM_EXECUCAO"));
+        evento("ORCAMENTO_GERADO", sagaId, java.util.Map.of("orcamentoId", "orc-1", "valorTotal", 200));
+        evento("ORCAMENTO_APROVADO", sagaId, java.util.Map.of("orcamentoId", "orc-1", "linkPagamento", "http://pagar"));
+        evento("PAGAMENTO_APROVADO", sagaId, java.util.Map.of("pagamentoId", "pay-1"));
+        evento("EXECUCAO_ATUALIZADA", sagaId, java.util.Map.of("statusExecucao", "EM_REPARO"));
+        evento("EXECUCAO_FINALIZADA", sagaId, java.util.Map.of());
 
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/finalizar")
-                        .header("Authorization", token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("FINALIZADA"));
-
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/entregar")
-                        .header("Authorization", token))
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/entregar").header("Authorization", token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ENTREGUE"));
+
+        mockMvc.perform(get("/api/ordens-servico/" + osId + "/saga").header("Authorization", token))
+                .andExpect(jsonPath("$[0].etapa").value("CONCLUIDA"))
+                .andExpect(jsonPath("$[0].linkPagamento").value("http://pagar"));
+        mockMvc.perform(get("/api/ordens-servico/" + osId + "/historico").header("Authorization", token))
+                .andExpect(jsonPath("$[0].statusNovo").value("RECEBIDA"))
+                .andExpect(jsonPath("$[-1:].statusNovo").value("ENTREGUE"));
     }
 
     @Test
     void devePermitirRejeitarOrcamentoEVoltarParaDiagnostico() throws Exception {
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/iniciar-diagnostico")
-                        .header("Authorization", token))
-                .andExpect(status().isOk());
+        prepararParaOrcamento();
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/gerar-orcamento").header("Authorization", token))
+                .andExpect(status().isAccepted());
+        String sagaId = sagaAtual();
 
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/gerar-orcamento")
-                        .header("Authorization", token))
-                .andExpect(status().isOk());
+        evento("ORCAMENTO_GERADO", sagaId, java.util.Map.of("orcamentoId", "orc-1"));
+        evento("ORCAMENTO_REJEITADO", sagaId, java.util.Map.of("motivo", "Valor alto"));
 
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/aprovacao-orcamento")
-                        .header("Authorization", token)
-                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                        .content("{\"aprovado\": false}"))
-                .andExpect(status().isOk())
+        mockMvc.perform(get("/api/ordens-servico/" + osId).header("Authorization", token))
                 .andExpect(jsonPath("$.status").value("EM_DIAGNOSTICO"));
+        mockMvc.perform(get("/api/ordens-servico/" + osId + "/saga").header("Authorization", token))
+                .andExpect(jsonPath("$[0].etapa").value("COMPENSADA"));
+    }
+
+    @Test
+    void naoGeraOrcamentoSemItensNemForaDoDiagnostico() throws Exception {
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/gerar-orcamento").header("Authorization", token))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/iniciar-diagnostico").header("Authorization", token));
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/gerar-orcamento").header("Authorization", token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensagem").value(org.hamcrest.Matchers.containsString("ao menos um serviço")));
+    }
+
+    @Test
+    void acompanhamentoFuncionaMesmoComOsOutrosServicosForaDoAr() throws Exception {
+        mockMvc.perform(get("/api/ordens-servico/" + osId + "/acompanhamento").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ordemServico.status").value("RECEBIDA"))
+                .andExpect(jsonPath("$.historico.length()").value(1))
+                .andExpect(jsonPath("$.indisponiveis.length()").value(2));
     }
 
     @Test
     void deveRetornar422ParaTransicaoInvalida() throws Exception {
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/finalizar")
+        mockMvc.perform(post("/api/ordens-servico/" + osId + "/entregar")
                         .header("Authorization", token))
                 .andExpect(status().isUnprocessableEntity());
     }
@@ -223,36 +279,6 @@ class OrdemServicoControllerIT {
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].status").value("RECEBIDA"));
-    }
-
-    @Test
-    void deveAprovarOrcamentoViaEndpointUnificado() throws Exception {
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/iniciar-diagnostico")
-                .header("Authorization", token)).andExpect(status().isOk());
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/gerar-orcamento")
-                .header("Authorization", token)).andExpect(status().isOk());
-
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/aprovacao-orcamento")
-                        .header("Authorization", token)
-                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                        .content("{\"aprovado\": true, \"observacao\": \"Cliente aprovou\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("EM_EXECUCAO"));
-    }
-
-    @Test
-    void deveRejeitarOrcamentoViaEndpointUnificado() throws Exception {
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/iniciar-diagnostico")
-                .header("Authorization", token)).andExpect(status().isOk());
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/gerar-orcamento")
-                .header("Authorization", token)).andExpect(status().isOk());
-
-        mockMvc.perform(post("/api/ordens-servico/" + osId + "/aprovacao-orcamento")
-                        .header("Authorization", token)
-                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                        .content("{\"aprovado\": false, \"observacao\": \"Valor muito alto\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("EM_DIAGNOSTICO"));
     }
 
     @Test

@@ -1,15 +1,14 @@
 package br.com.fiap.challange.oficina.application.usecase;
 
-import br.com.fiap.challange.oficina.domain.exception.EstoqueInsuficienteException;
 import br.com.fiap.challange.oficina.domain.exception.RegraDeNegocioException;
 import br.com.fiap.challange.oficina.domain.exception.RecursoNaoEncontradoException;
 import br.com.fiap.challange.oficina.domain.model.*;
 import br.com.fiap.challange.oficina.domain.model.enums.StatusOS;
 import br.com.fiap.challange.oficina.domain.port.in.OrdemServicoInputPort;
+import br.com.fiap.challange.oficina.domain.port.in.OrquestradorSagaInputPort;
 import br.com.fiap.challange.oficina.domain.port.in.command.AbrirOrdemServicoCommand;
 import br.com.fiap.challange.oficina.domain.port.in.command.AdicionarItemPecaCommand;
 import br.com.fiap.challange.oficina.domain.port.in.command.AdicionarItemServicoCommand;
-import br.com.fiap.challange.oficina.domain.port.in.command.AprovacaoOrcamentoCommand;
 import br.com.fiap.challange.oficina.domain.port.out.*;
 import br.com.fiap.challange.oficina.domain.validator.CpfCnpjValidator;
 import br.com.fiap.challange.oficina.domain.validator.PlacaValidator;
@@ -36,7 +35,10 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
     private final VeiculoRepositoryPort veiculoRepository;
     private final ServicoRepositoryPort servicoRepository;
     private final PecaRepositoryPort pecaRepository;
-    private final EmailPort emailPort;
+    private final HistoricoStatusRepositoryPort historicoRepository;
+    private final GestorStatusOS gestorStatus;
+    private final EstoqueService estoque;
+    private final OrquestradorSagaInputPort orquestrador;
 
     @Override
     public OrdemServico criar(AbrirOrdemServicoCommand command) {
@@ -74,7 +76,7 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
             for (AdicionarItemPecaCommand item : command.pecas()) {
                 Peca peca = pecaRepository.findById(item.pecaId())
                         .orElseThrow(() -> new RecursoNaoEncontradoException("Peça não encontrada: " + item.pecaId()));
-                validarEstoque(peca, item.quantidade());
+                estoque.validar(peca, item.quantidade());
                 ItemPecaOS itemOS = ItemPecaOS.builder()
                         .ordemServico(os).peca(peca)
                         .quantidade(item.quantidade()).precoUnitario(peca.getPrecoUnitario()).build();
@@ -84,6 +86,8 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
 
         os.recalcularTotal();
         OrdemServico salva = osRepository.save(os);
+        historicoRepository.registrar(new HistoricoStatusOS(null, salva.getId(), null, StatusOS.RECEBIDA,
+                "atendimento", "OS aberta", LocalDateTime.now()));
         log.info("OS criada numero={} id={} valorTotal={}", salva.getNumero(), salva.getId(), salva.getValorTotal());
         return salva;
     }
@@ -100,7 +104,8 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
     public List<OrdemServico> listarAtivas() {
         log.info("Listando OSs ativas ordenadas por prioridade");
         List<StatusOS> prioridade = List.of(
-                StatusOS.EM_EXECUCAO, StatusOS.AGUARDANDO_APROVACAO,
+                StatusOS.EM_EXECUCAO, StatusOS.AGUARDANDO_EXECUCAO, StatusOS.AGUARDANDO_PAGAMENTO,
+                StatusOS.AGUARDANDO_APROVACAO, StatusOS.AGUARDANDO_ORCAMENTO,
                 StatusOS.EM_DIAGNOSTICO, StatusOS.RECEBIDA);
         return osRepository.findByStatusIn(prioridade)
                 .stream()
@@ -132,79 +137,29 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
     }
 
     @Override
-    public OrdemServico iniciarDiagnostico(Long id) {
+    public OrdemServico iniciarDiagnostico(Long id, String responsavel) {
         log.info("Iniciando diagnóstico OS id={}", id);
-        OrdemServico os = buscarEntidadePorId(id);
-        os.transicionarStatus(StatusOS.EM_DIAGNOSTICO);
-        return osRepository.save(os);
+        return gestorStatus.mudar(buscarEntidadePorId(id), StatusOS.EM_DIAGNOSTICO, responsavel, "Diagnóstico iniciado");
     }
 
     @Override
-    public OrdemServico gerarOrcamento(Long id) {
-        log.info("Gerando orçamento OS id={}", id);
-        OrdemServico os = buscarEntidadePorId(id);
-        os.recalcularTotal();
-        os.transicionarStatus(StatusOS.AGUARDANDO_APROVACAO);
-        OrdemServico salva = osRepository.save(os);
-        log.info("Orçamento gerado OS id={} valorTotal={}", id, salva.getValorTotal());
-        emailPort.enviarNotificacaoOrcamento(
-                os.getCliente().getEmail(),
-                os.getCliente().getNome(),
-                os.getNumero(),
-                os.getValorTotal());
-        return salva;
+    public OrdemServico gerarOrcamento(Long id, String responsavel) {
+        log.info("Pedindo orçamento OS id={}", id);
+        orquestrador.iniciar(id, responsavel);
+        return buscarEntidadePorId(id);
     }
 
     @Override
-    public OrdemServico aprovarOrcamento(Long id) {
-        log.info("Aprovando orçamento OS id={}", id);
-        OrdemServico os = buscarEntidadePorId(id);
-        for (ItemPecaOS item : os.getItensPeca()) {
-            validarEstoque(item.getPeca(), item.getQuantidade());
-        }
-        os.transicionarStatus(StatusOS.EM_EXECUCAO);
-        for (ItemPecaOS item : os.getItensPeca()) {
-            Peca peca = item.getPeca();
-            peca.setQuantidadeEstoque(peca.getQuantidadeEstoque() - item.getQuantidade());
-            pecaRepository.save(peca);
-            log.info("Estoque baixado peça id={} nome={} qtd={}", peca.getId(), peca.getNome(), item.getQuantidade());
-        }
-        return osRepository.save(os);
-    }
-
-    @Override
-    public OrdemServico rejeitarOrcamento(Long id) {
-        log.info("Rejeitando orçamento OS id={}", id);
-        OrdemServico os = buscarEntidadePorId(id);
-        os.transicionarStatus(StatusOS.EM_DIAGNOSTICO);
-        return osRepository.save(os);
-    }
-
-    @Override
-    public OrdemServico aprovarOuRejeitarOrcamento(Long id, AprovacaoOrcamentoCommand command) {
-        if (Boolean.TRUE.equals(command.aprovado())) {
-            log.info("Aprovando orçamento via endpoint unificado OS id={}", id);
-            return aprovarOrcamento(id);
-        } else {
-            log.info("Rejeitando orçamento via endpoint unificado OS id={} observacao={}", id, command.observacao());
-            return rejeitarOrcamento(id);
-        }
-    }
-
-    @Override
-    public OrdemServico finalizar(Long id) {
-        log.info("Finalizando OS id={}", id);
-        OrdemServico os = buscarEntidadePorId(id);
-        os.transicionarStatus(StatusOS.FINALIZADA);
-        return osRepository.save(os);
-    }
-
-    @Override
-    public OrdemServico entregar(Long id) {
+    public OrdemServico entregar(Long id, String responsavel) {
         log.info("Registrando entrega OS id={}", id);
-        OrdemServico os = buscarEntidadePorId(id);
-        os.transicionarStatus(StatusOS.ENTREGUE);
-        return osRepository.save(os);
+        return gestorStatus.mudar(buscarEntidadePorId(id), StatusOS.ENTREGUE, responsavel, "Veículo entregue ao cliente");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<HistoricoStatusOS> historico(Long id) {
+        buscarEntidadePorId(id);
+        return historicoRepository.buscarPorOrdemServico(id);
     }
 
     @Override
@@ -229,7 +184,7 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
         validarStatusParaEdicaoDeItens(os);
         Peca peca = pecaRepository.findById(command.pecaId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Peça não encontrada: " + command.pecaId()));
-        validarEstoque(peca, command.quantidade());
+        estoque.validar(peca, command.quantidade());
         ItemPecaOS item = ItemPecaOS.builder()
                 .ordemServico(os).peca(peca)
                 .quantidade(command.quantidade()).precoUnitario(peca.getPrecoUnitario()).build();
@@ -269,14 +224,6 @@ public class OrdemServicoUseCase implements OrdemServicoInputPort {
             throw new RegraDeNegocioException(
                     String.format("Itens só podem ser adicionados em OS com status RECEBIDA ou EM_DIAGNOSTICO. Status atual: %s",
                             os.getStatus().getDescricao()));
-        }
-    }
-
-    private void validarEstoque(Peca peca, int quantidade) {
-        if (peca.getQuantidadeEstoque() < quantidade) {
-            throw new EstoqueInsuficienteException(
-                    String.format("Estoque insuficiente para '%s'. Disponível: %d, Solicitado: %d",
-                            peca.getNome(), peca.getQuantidadeEstoque(), quantidade));
         }
     }
 
