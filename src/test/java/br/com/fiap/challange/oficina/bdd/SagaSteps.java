@@ -9,6 +9,7 @@ import br.com.fiap.challange.oficina.infrastructure.messaging.ReceptorMensagens;
 import br.com.fiap.challange.oficina.infrastructure.security.JwtService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.pt.Dado;
 import io.cucumber.java.pt.E;
@@ -71,7 +72,12 @@ public class SagaSteps {
     private Long pecaId;
     private Mensagem ultimaMensagem;
 
+    /**
+     * Limpa antes e depois de cada cenário: o contexto Spring (e o H2) é o
+     * mesmo dos testes de integração, que não esperam encontrar dados daqui.
+     */
     @Before
+    @After
     public void limparBanco() {
         for (String tabela : List.of("saga_passos", "sagas_ordem_servico", "historico_status_os", "outbox_mensagens",
                 "mensagens_processadas", "itens_peca_os", "itens_servico_os", "ordens_servico", "veiculos",
