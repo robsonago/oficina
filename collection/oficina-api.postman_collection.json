@@ -2,13 +2,13 @@
   "info": {
     "name": "Oficina Mecânica",
     "_postman_id": "oficina-mecanica-fiap-fase2",
-    "description": "Collection com geração automática de dados em cada execução.\n\n- CPF matematicamente válido gerado no pre-request\n- Placa aleatória (formato antigo ou Mercosul)\n- IDs capturados automaticamente e reutilizados nos requests seguintes\n- Execute em ordem de cima para baixo para o fluxo completo\n\n**Zero setup manual**: a collection já vem com token e ambiente configurados. Ao importar, qualquer request (não precisa ser \"Login\" primeiro) autentica sozinho automaticamente (script de pre-request no nível da collection) se ainda não houver um token salvo — tanto o do funcionário (admin/admin123) quanto o do cliente (CPF, no request que demonstra token_cliente). clienteDocumento/osId já vêm preenchidos com registros reais que existem em produção, então dá pra rodar buscas/consultas direto, sem precisar criar nada antes.\n\nCompatível com Postman (scripts ativos) e Insomnia (import funciona; scripts de geração automática/auto-login são ignorados — nesse caso, rode Login manualmente primeiro).\n\nAmbiente ativo: base_url já aponta para produção na GCP (Gateway). Troque base_url por {{gateway_homolog_url}} ou {{base_url_local}} para outros ambientes. As URLs de homolog/produção das Cloud Functions e do Gateway são estáveis entre redeploys (não mudam sozinhas).\n\nFase 4: a OS passa por três microsserviços. Pelo API Gateway tudo usa {{base_url}}. Rodando local (docker compose), troque billing_url por {{billing_url_local}} e execucao_url por {{execucao_url_local}}. Ordem do fluxo completo: Ordens de Serviço 01–05 → Billing 01, 03, 04 → Execution 02, 04, 05, 06 → Ordens de Serviço 09. Entre um passo e outro a saga leva cerca de 1 segundo para avançar (mensageria assíncrona).",
+    "description": "Collection com geração automática de dados em cada execução.\n\n- CPF matematicamente válido gerado no pre-request\n- Placa aleatória (formato antigo ou Mercosul)\n- IDs capturados automaticamente e reutilizados nos requests seguintes\n- Execute em ordem de cima para baixo para o fluxo completo\n\n**Zero setup manual**: a collection já vem com token e ambiente configurados. Ao importar, qualquer request (não precisa ser \"Login\" primeiro) autentica sozinho automaticamente (script de pre-request no nível da collection) se ainda não houver um token salvo — tanto o do funcionário (admin/admin123) quanto o do cliente (CPF, no request que demonstra token_cliente). Os ids (cliente, veículo, OS, orçamento, execução) são preenchidos pelos requests de criação — rode o fluxo de cima para baixo.\n\nCompatível com Postman (scripts ativos) e Insomnia (import funciona; scripts de geração automática/auto-login são ignorados — nesse caso, rode Login manualmente primeiro).\n\nAmbientes: base_url já aponta para homologação na GCP (Gateway), que é o ambiente no ar. Para produção, troque base_url por {{gateway_producao_url}}.\n\nRodando local (docker compose, cada serviço na sua porta): importe também o ambiente collection/oficina-local.postman_environment.json e selecione \"Oficina — local\" — ele aponta base_url, billing_url e execucao_url para as portas 8080, 8081 e 8082. Sem o arquivo de ambiente, troque à mão base_url por {{base_url_local}}, billing_url por {{billing_url_local}} e execucao_url por {{execucao_url_local}}.\n\nFase 4: a OS passa por três microsserviços. Pelo API Gateway tudo usa {{base_url}}. Ordem do fluxo completo: Ordens de Serviço 01–05 → Billing 01, 03, 04 → Execution 02, 04, 05, 06 → Ordens de Serviço 09. Entre um passo e outro a saga leva cerca de 1 segundo para avançar (mensageria assíncrona).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "base_url",
-      "value": "{{gateway_producao_url}}",
+      "value": "{{gateway_homolog_url}}",
       "type": "string"
     },
     {
@@ -1881,7 +1881,7 @@
                   "",
                   "if (!jaTem) {",
                   "    pm.sendRequest({",
-                  "        url: pm.collectionVariables.get('auth_function_url'),",
+                  "        url: pm.variables.replaceIn('{{auth_function_url}}'),",
                   "        method: 'POST',",
                   "        header: { 'Content-Type': 'application/json' },",
                   "        body: {",
@@ -1918,7 +1918,7 @@
           "",
           "if (!jaTemToken && !ehLogin) {",
           "    pm.sendRequest({",
-          "        url: pm.collectionVariables.get('base_url') + '/api/auth/login',",
+          "        url: pm.variables.replaceIn('{{base_url}}') + '/api/auth/login',",
           "        method: 'POST',",
           "        header: { 'Content-Type': 'application/json' },",
           "        body: {",

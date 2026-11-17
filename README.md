@@ -205,7 +205,10 @@ docker run -d -p 5432:5432 -e POSTGRES_DB=oficina -e POSTGRES_USER=oficina -e PO
 
 - Swagger: `/swagger-ui.html`
 - Collection Postman (os três serviços, com o fluxo completo da saga e os cenários de compensação):
-  [`collection/oficina-api.postman_collection.json`](collection/oficina-api.postman_collection.json)
+  [`collection/oficina-api.postman_collection.json`](collection/oficina-api.postman_collection.json).
+  Por padrão aponta para o API Gateway de homologação; para rodar contra o docker compose, importe
+  também o ambiente [`collection/oficina-local.postman_environment.json`](collection/oficina-local.postman_environment.json)
+  (funciona no Postman e no Insomnia).
 
 ### Ordens de serviço
 
