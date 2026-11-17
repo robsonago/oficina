@@ -23,6 +23,8 @@
         <resilience4j.version>2.2.0</resilience4j.version>
         <cucumber.version>7.20.1</cucumber.version>
         <newrelic.version>8.17.0</newrelic.version>
+        <!-- 1.20.x (padrão do Boot 3.4.1) usa API do Docker que os runners novos recusam -->
+        <testcontainers.version>1.21.4</testcontainers.version>
         <cobertura.minima>0.80</cobertura.minima>
 
         <sonar.organization>robsonago</sonar.organization>
